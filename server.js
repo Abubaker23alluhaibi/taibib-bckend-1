@@ -9,26 +9,8 @@ const fs = require('fs');
 
 const app = express();
 // إعدادات CORS محسنة للوصول من الهاتف
-const allowedOrigins = [
-  'https://www.tabib-iq.com',
-  'https://tabib-iq.com',
-  'https://tabib-iq-frontend.vercel.app',
-  'https://tabib-iq-frontend-4mrbjy291-abubakers-projects-f1e3718d.vercel.app',
-  'http://localhost:3000'
-];
-
 app.use(cors({
-  origin: function (origin, callback) {
-    // السماح للطلبات بدون origin (مثل mobile apps)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log('🚫 Blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // السماح لجميع المصادر مؤقتاً
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -41,7 +23,8 @@ app.get('/', (req, res) => {
     status: 'OK', 
     message: 'Tabib IQ Backend API is running',
     version: '1.0.0',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
   });
 });
 
@@ -50,6 +33,16 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
     message: 'Tabib IQ Backend is running',
+    timestamp: new Date().toISOString(),
+    mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    uptime: process.uptime()
+  });
+});
+
+// Test endpoint
+app.get('/api/test', (req, res) => {
+  res.status(200).json({ 
+    message: 'API is working!',
     timestamp: new Date().toISOString()
   });
 });
@@ -66,13 +59,27 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // اتصال MongoDB
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://tabibiq:tabibiq123@cluster0.abc123.mongodb.net/tabibiq?retryWrites=true&w=majority';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://tabibiq:tabibiq123@cluster0.mongodb.net/tabibiq?retryWrites=true&w=majority';
+
+console.log('🔍 Attempting to connect to MongoDB...');
+console.log('🔍 MONGO_URI:', MONGO_URI);
+
 mongoose.connect(MONGO_URI, {
-  serverSelectionTimeoutMS: 5000,
+  serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
+  maxPoolSize: 10,
+  retryWrites: true,
+  w: 'majority'
 })
-.then(() => console.log('✅ Connected to MongoDB Atlas'))
-.catch((err) => console.error('❌ MongoDB connection error:', err));
+.then(() => {
+  console.log('✅ Connected to MongoDB Atlas successfully!');
+  console.log('✅ Database:', mongoose.connection.name);
+})
+.catch((err) => {
+  console.error('❌ MongoDB connection error:', err.message);
+  console.error('❌ Error code:', err.code);
+  console.error('❌ Error name:', err.name);
+});
 
 // مخطط المستخدمين
 const userSchema = new mongoose.Schema({
