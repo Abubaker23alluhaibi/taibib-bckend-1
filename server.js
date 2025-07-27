@@ -61,24 +61,37 @@ const upload = multer({ storage });
 // اتصال MongoDB
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://tabibiq:tabibiq123@cluster0.mongodb.net/tabibiq?retryWrites=true&w=majority';
 
-console.log('🔍 Attempting to connect to MongoDB...');
-console.log('🔍 MONGO_URI:', MONGO_URI);
+console.log('🔗 Attempting to connect to MongoDB...');
+console.log('📝 MONGO_URI:', MONGO_URI ? 'Set (hidden for security)' : 'Not set');
 
 mongoose.connect(MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
   serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
+  connectTimeoutMS: 10000,
   maxPoolSize: 10,
   retryWrites: true,
   w: 'majority'
 })
 .then(() => {
-  console.log('✅ Connected to MongoDB Atlas successfully!');
-  console.log('✅ Database:', mongoose.connection.name);
+  console.log('✅ Connected to MongoDB Atlas successfully');
+  console.log('📊 Database:', mongoose.connection.name);
+  console.log('🌐 Host:', mongoose.connection.host);
 })
 .catch((err) => {
   console.error('❌ MongoDB connection error:', err.message);
   console.error('❌ Error code:', err.code);
   console.error('❌ Error name:', err.name);
+  
+  // Log additional details for debugging
+  if (err.code === 'ENOTFOUND') {
+    console.error('🔍 DNS resolution failed. Check your MongoDB URI and network connection.');
+  } else if (err.code === 'ECONNREFUSED') {
+    console.error('🔍 Connection refused. Check if MongoDB service is running.');
+  } else if (err.code === 'ETIMEDOUT') {
+    console.error('🔍 Connection timeout. Check your network connection.');
+  }
 });
 
 // مخطط المستخدمين
@@ -2802,7 +2815,46 @@ app.get('/medicine-reminders/:userId', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+
+// Improved server startup with error handling
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log('🚀 Server started successfully!');
+  console.log(`🌐 Server running on port ${PORT}`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`⏰ Started at: ${new Date().toISOString()}`);
+});
+
+// Handle server errors
+server.on('error', (error) => {
+  console.error('❌ Server error:', error);
+  if (error.code === 'EADDRINUSE') {
+    console.error('🔍 Port is already in use. Please try a different port.');
+  }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    mongoose.connection.close(() => {
+      console.log('✅ MongoDB connection closed');
+      process.exit(0);
+    });
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received, shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    mongoose.connection.close(() => {
+      console.log('✅ MongoDB connection closed');
+      process.exit(0);
+    });
+  });
+});
 
 // إضافة موعد خاص (special appointment)
 app.post('/add-special-appointment', async (req, res) => {
