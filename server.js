@@ -466,7 +466,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 // رفع صورة (مثلاً صورة بروفايل أو رسالة)
-app.post('/upload', upload.single('image'), (req, res) => {
+app.post('/api/upload', upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'لم يتم رفع أي صورة' });
   const imageUrl = `/uploads/${req.file.filename}`;
   res.json({ imageUrl });
@@ -504,7 +504,7 @@ app.get('/api/doctor-appointments/:doctorId', async (req, res) => {
 });
 
 // إرسال رسالة (نصية أو مع صورة)
-app.post('/messages', async (req, res) => {
+app.post('/api/messages', async (req, res) => {
   try {
     const { from, to, text, image } = req.body;
     const message = new Message({ from, to, text, image });
@@ -516,7 +516,7 @@ app.post('/messages', async (req, res) => {
 });
 
 // جلب الرسائل بين مستخدمين
-app.get('/messages', async (req, res) => {
+app.get('/api/messages', async (req, res) => {
   try {
     const { from, to } = req.query;
     const messages = await Message.find({
@@ -847,7 +847,7 @@ if (centerData.doctors) {
 });
 
 // جلب جميع المراكز الصحية المعتمدة (للمستخدمين)
-app.get('/health-centers', async (req, res) => {
+app.get('/api/health-centers', async (req, res) => {
   try {
     const centers = await HealthCenter.find({ 
       status: 'approved', 
