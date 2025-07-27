@@ -9,8 +9,25 @@ const fs = require('fs');
 
 const app = express();
 // إعدادات CORS محسنة للوصول من الهاتف
+const allowedOrigins = [
+  'https://www.tabib-iq.com',
+  'https://tabib-iq.com',
+  'https://tabib-iq-frontend.vercel.app',
+  'http://localhost:3000'
+];
+
 app.use(cors({
-  origin: true, // السماح لجميع المصادر
+  origin: function (origin, callback) {
+    // السماح للطلبات بدون origin (مثل mobile apps)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('🚫 Blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -38,9 +55,15 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // اتصال MongoDB
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/tabibiq')
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://tabibiq:tabibiq123@cluster0.mongodb.net/tabibiq?retryWrites=true&w=majority';
+mongoose.connect(MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+})
+.then(() => console.log('✅ Connected to MongoDB Atlas'))
+.catch((err) => console.error('❌ MongoDB connection error:', err));
 
 // مخطط المستخدمين
 const userSchema = new mongoose.Schema({
