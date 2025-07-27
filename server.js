@@ -13,6 +13,7 @@ const allowedOrigins = [
   'https://www.tabib-iq.com',
   'https://tabib-iq.com',
   'https://tabib-iq-frontend.vercel.app',
+  'https://tabib-iq-frontend-4mrbjy291-abubakers-projects-f1e3718d.vercel.app',
   'http://localhost:3000'
 ];
 
@@ -33,6 +34,16 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    message: 'Tabib IQ Backend API is running',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -55,10 +66,8 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // اتصال MongoDB
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://tabibiq:tabibiq123@cluster0.mongodb.net/tabibiq?retryWrites=true&w=majority';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://tabibiq:tabibiq123@cluster0.abc123.mongodb.net/tabibiq?retryWrites=true&w=majority';
 mongoose.connect(MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
 })
