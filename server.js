@@ -287,7 +287,7 @@ function normalizePhone(phone) {
 }
 
 // تسجيل مستخدم جديد
-app.post('/register', async (req, res) => {
+app.post('/api/register', async (req, res) => {
   try {
     const { email, password, first_name, phone } = req.body;
     // توحيد رقم الهاتف
@@ -310,7 +310,7 @@ app.post('/register', async (req, res) => {
 });
 
 // تسجيل طبيب جديد
-app.post('/register-doctor', upload.fields([
+app.post('/api/register-doctor', upload.fields([
   { name: 'image', maxCount: 1 },
   { name: 'idFront', maxCount: 1 },
   { name: 'idBack', maxCount: 1 },
@@ -375,7 +375,7 @@ app.post('/register-doctor', upload.fields([
 });
 
 // تسجيل الدخول (حسب نوع الحساب)
-app.post('/login', async (req, res) => {
+app.post('/api/login', async (req, res) => {
   try {
     let { email, password, loginType } = req.body;
     // إذا كان input لا يحتوي @ اعتبره رقم هاتف
@@ -491,7 +491,7 @@ app.get('/user-appointments/:userId', async (req, res) => {
 });
 
 // جلب مواعيد الطبيب
-app.get('/doctor-appointments/:doctorId', async (req, res) => {
+app.get('/api/doctor-appointments/:doctorId', async (req, res) => {
   try {
     const { doctorId } = req.params;
     const appointments = await Appointment.find({ doctorId })
@@ -532,7 +532,7 @@ app.get('/messages', async (req, res) => {
 });
 
 // جلب قائمة المستخدمين
-app.get('/users', async (req, res) => {
+app.get('/api/users', async (req, res) => {
   try {
     const users = await User.find({}, { password: 0, __v: 0 })
       .sort({ createdAt: -1, _id: -1 });
@@ -543,7 +543,7 @@ app.get('/users', async (req, res) => {
 });
 
 // جلب قائمة الأطباء (الحسابات الرسمية)
-app.get('/doctors', async (req, res) => {
+app.get('/api/doctors', async (req, res) => {
   try {
     // جلب الأطباء المميزين أولاً
     const featuredDoctors = await FeaturedDoctor.find({})
