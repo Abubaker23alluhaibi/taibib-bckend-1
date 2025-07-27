@@ -17,6 +17,15 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    message: 'Tabib IQ Backend is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // إعداد مجلد رفع الصور
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
