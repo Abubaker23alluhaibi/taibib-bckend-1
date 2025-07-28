@@ -3306,6 +3306,25 @@ app.put('/api/notifications/mark-read', async (req, res) => {
   }
 });
 
+// جلب المواعيد المحجوزة لطبيب معين في تاريخ محدد
+app.get('/api/appointments/:doctorId/:date', async (req, res) => {
+  try {
+    const { doctorId, date } = req.params;
+    console.log(`🔍 جلب المواعيد المحجوزة - الطبيب: ${doctorId}, التاريخ: ${date}`);
+    
+    const appointments = await Appointment.find({ 
+      doctorId, 
+      date 
+    }).select('time');
+    
+    console.log(`✅ تم جلب ${appointments.length} موعد محجوز`);
+    res.json(appointments);
+  } catch (err) {
+    console.error('❌ خطأ في جلب المواعيد المحجوزة:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب المواعيد المحجوزة' });
+  }
+});
+
 // الموافقة على طبيب
 app.put('/api/doctors/:id/approve', async (req, res) => {
   try {
