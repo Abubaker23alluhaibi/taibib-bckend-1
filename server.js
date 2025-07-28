@@ -3754,6 +3754,54 @@ app.delete('/notifications/:id', async (req, res) => {
   }
 });
 
+// ===== نقاط نهاية رفع الصور والوثائق =====
+
+// إعداد مجلد uploads للوصول العام
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// رفع صورة الملف الشخصي
+app.post('/upload-profile-image', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'لم يتم رفع أي صورة' });
+    }
+    
+    const imageUrl = `/uploads/${req.file.filename}`;
+    console.log('✅ تم رفع الصورة:', imageUrl);
+    res.json({ imageUrl });
+  } catch (err) {
+    console.error('❌ خطأ في رفع الصورة:', err);
+    res.status(500).json({ error: 'حدث خطأ في رفع الصورة' });
+  }
+});
+
+// رفع وثائق الطبيب
+app.post('/upload-doctor-documents', upload.fields([
+  { name: 'idFront', maxCount: 1 },
+  { name: 'idBack', maxCount: 1 },
+  { name: 'syndicateFront', maxCount: 1 },
+  { name: 'syndicateBack', maxCount: 1 },
+  { name: 'image', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    const uploadedFiles = {};
+    
+    if (req.files) {
+      Object.keys(req.files).forEach(fieldName => {
+        if (req.files[fieldName] && req.files[fieldName][0]) {
+          uploadedFiles[fieldName] = `/uploads/${req.files[fieldName][0].filename}`;
+        }
+      });
+    }
+    
+    console.log('✅ تم رفع الوثائق:', uploadedFiles);
+    res.json({ files: uploadedFiles });
+  } catch (err) {
+    console.error('❌ خطأ في رفع الوثائق:', err);
+    res.status(500).json({ error: 'حدث خطأ في رفع الوثائق' });
+  }
+});
+
 // ===== نهاية نقاط النهاية للوحة تحكم الأدمن =====
 
 app.use((req, res, next) => {
