@@ -3189,11 +3189,37 @@ app.post('/api/appointments', async (req, res) => {
     
     // إرسال إشعار للطبيب
     console.log(`📧 إرسال إشعار للطبيب: ${doctor.email}`);
-    // هنا يمكن إضافة كود إرسال الإشعار عبر البريد الإلكتروني أو Push Notification
+    
+    // إنشاء إشعار للطبيب
+    const doctorNotification = new Notification({
+      userId: doctorId,
+      userType: 'doctor',
+      title: 'موعد جديد',
+      message: `تم حجز موعد جديد من ${user.first_name} في ${date} الساعة ${time}`,
+      type: 'appointment',
+      appointmentId: appointment._id,
+      read: false
+    });
+    
+    await doctorNotification.save();
+    console.log(`✅ تم إنشاء إشعار للطبيب - ID: ${doctorNotification._id}`);
     
     // إرسال إشعار للمستخدم
     console.log(`📧 إرسال إشعار للمستخدم: ${user.email}`);
-    // هنا يمكن إضافة كود إرسال الإشعار عبر البريد الإلكتروني أو Push Notification
+    
+    // إنشاء إشعار للمستخدم
+    const userNotification = new Notification({
+      userId: userId,
+      userType: 'user',
+      title: 'تم حجز الموعد',
+      message: `تم حجز موعدك مع الدكتور ${doctor.name} في ${date} الساعة ${time}`,
+      type: 'appointment',
+      appointmentId: appointment._id,
+      read: false
+    });
+    
+    await userNotification.save();
+    console.log(`✅ تم إنشاء إشعار للمستخدم - ID: ${userNotification._id}`);
     
     console.log(`✅ تم إنشاء موعد جديد: ${appointment._id}`);
     res.status(201).json({ 
@@ -3333,12 +3359,17 @@ app.get('/api/test/users', async (req, res) => {
 // جلب إشعارات المستخدم
 app.get('/api/notifications', async (req, res) => {
   try {
-    const { userId, doctorId } = req.query;
-    console.log(`🔍 جلب الإشعارات - المستخدم: ${userId}, الطبيب: ${doctorId}`);
+    const { userId, userType } = req.query;
+    console.log(`🔍 جلب الإشعارات - المستخدم: ${userId}, النوع: ${userType}`);
     
-    // يمكن إضافة منطق لجلب الإشعارات من قاعدة البيانات
-    // حالياً نرجع مصفوفة فارغة
-    const notifications = [];
+    if (!userId) {
+      return res.status(400).json({ error: 'معرف المستخدم مطلوب' });
+    }
+    
+    const notifications = await Notification.find({ 
+      userId: userId,
+      userType: userType || 'user'
+    }).sort({ createdAt: -1 });
     
     console.log(`✅ تم جلب ${notifications.length} إشعار`);
     res.json(notifications);
@@ -3351,12 +3382,27 @@ app.get('/api/notifications', async (req, res) => {
 // تحديث حالة قراءة الإشعارات
 app.put('/api/notifications/mark-read', async (req, res) => {
   try {
-    const { userId, doctorId } = req.query;
-    console.log(`🔍 تحديث حالة قراءة الإشعارات - المستخدم: ${userId}, الطبيب: ${doctorId}`);
+    const { userId, userType } = req.query;
+    console.log(`🔍 تحديث حالة قراءة الإشعارات - المستخدم: ${userId}, النوع: ${userType}`);
     
-    // يمكن إضافة منطق لتحديث حالة قراءة الإشعارات
-    console.log(`✅ تم تحديث حالة قراءة الإشعارات`);
-    res.json({ message: 'تم تحديث حالة قراءة الإشعارات بنجاح' });
+    if (!userId) {
+      return res.status(400).json({ error: 'معرف المستخدم مطلوب' });
+    }
+    
+    const result = await Notification.updateMany(
+      { 
+        userId: userId,
+        userType: userType || 'user',
+        read: false
+      },
+      { read: true }
+    );
+    
+    console.log(`✅ تم تحديث ${result.modifiedCount} إشعار كـ مقروء`);
+    res.json({ 
+      message: 'تم تحديث حالة قراءة الإشعارات بنجاح',
+      updatedCount: result.modifiedCount
+    });
   } catch (err) {
     console.error('❌ خطأ في تحديث حالة قراءة الإشعارات:', err);
     res.status(500).json({ error: 'حدث خطأ في تحديث حالة قراءة الإشعارات' });
