@@ -81,47 +81,83 @@ const upload = multer({
 
 // User Schema
 const userSchema = new mongoose.Schema({
-  name: { type: String, required: true },
+  first_name: { type: String },
+  name: { type: String },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   phone: { type: String },
+  user_type: { type: String, enum: ['user', 'doctor', 'admin'], default: 'user' },
   role: { type: String, enum: ['patient', 'doctor', 'admin'], default: 'patient' },
   avatar: { type: String },
+  image: { type: String },
+  active: { type: Boolean, default: true },
+  disabled: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
+  created_at: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
 
 // Doctor Schema
 const doctorSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  specialization: { type: String, required: true },
-  license: { type: String, required: true },
-  experience: { type: Number },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  email: { type: String },
+  password: { type: String },
+  name: { type: String },
+  phone: { type: String },
+  specialty: { type: String },
+  specialization: { type: String },
+  province: { type: String },
+  area: { type: String },
+  clinicLocation: { type: String },
+  image: { type: String },
+  idFront: { type: String },
+  idBack: { type: String },
+  syndicateFront: { type: String },
+  syndicateBack: { type: String },
+  about: { type: String },
   bio: { type: String },
-  consultationFee: { type: Number },
+  workTimes: [{
+    day: String,
+    from: String,
+    to: String
+  }],
   availableDays: [String],
   availableHours: {
     start: String,
     end: String
   },
+  experienceYears: { type: Number },
+  experience: { type: Number },
+  consultationFee: { type: Number },
+  isIndependent: { type: Boolean },
+  status: { type: String, default: 'pending' },
+  isVerified: { type: Boolean, default: false },
+  isAvailable: { type: Boolean, default: true },
+  active: { type: Boolean, default: true },
+  disabled: { type: Boolean, default: false },
+  is_featured: { type: Boolean, default: false },
+  user_type: { type: String, default: 'doctor' },
   rating: { type: Number, default: 0 },
   totalRatings: { type: Number, default: 0 },
-  isVerified: { type: Boolean, default: false },
-  isAvailable: { type: Boolean, default: true }
+  createdAt: { type: Date, default: Date.now },
+  created_at: { type: Date, default: Date.now }
 });
 
 // Appointment Schema
 const appointmentSchema = new mongoose.Schema({
-  patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor', required: true },
-  date: { type: Date, required: true },
+  serviceType: { type: String },
+  date: { type: String },
+  appointmentDate: { type: Date },
   time: { type: String, required: true },
   status: { 
     type: String, 
     enum: ['pending', 'confirmed', 'cancelled', 'completed'], 
     default: 'pending' 
   },
-  type: { type: String, enum: ['consultation', 'follow-up'], default: 'consultation' },
+  type: { type: String, enum: ['consultation', 'follow-up', 'normal'], default: 'consultation' },
   notes: { type: String },
   symptoms: { type: String },
   prescription: { type: String },
@@ -232,8 +268,40 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    // Find user
-    const user = await User.findOne({ email });
+    // Find user in users collection
+    let user = await User.findOne({ email });
+    
+    // If not found in users, check doctors collection
+    if (!user) {
+      const doctor = await Doctor.findOne({ email });
+      if (doctor) {
+        user = {
+          _id: doctor._id,
+          name: doctor.name,
+          email: doctor.email,
+          password: doctor.password,
+          role: 'doctor',
+          user_type: 'doctor',
+          avatar: doctor.image
+        };
+      }
+    }
+    
+    // If not found in doctors, check admins collection
+    if (!user) {
+      const admin = await mongoose.connection.db.collection('admins').findOne({ email });
+      if (admin) {
+        user = {
+          _id: admin._id,
+          name: admin.name,
+          email: admin.email,
+          password: admin.password,
+          role: 'admin',
+          user_type: 'admin'
+        };
+      }
+    }
+    
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
@@ -248,10 +316,10 @@ app.post('/api/auth/login', async (req, res) => {
       message: 'Login successful',
       user: {
         id: user._id,
-        name: user.name,
+        name: user.name || user.first_name,
         email: user.email,
-        role: user.role,
-        avatar: user.avatar
+        role: user.role || user.user_type,
+        avatar: user.avatar || user.image
       }
     });
   } catch (error) {
@@ -264,19 +332,14 @@ app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    // Find user
-    const user = await User.findOne({ email });
-    if (!user) {
+    // Find admin in admins collection
+    const admin = await mongoose.connection.db.collection('admins').findOne({ email });
+    if (!admin) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
     
-    // Check if user is admin
-    if (user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied. Admin only.' });
-    }
-    
     // Check password
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(password, admin.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
@@ -284,11 +347,11 @@ app.post('/api/login', async (req, res) => {
     res.json({
       message: 'Admin login successful',
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        avatar: user.avatar
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        role: 'admin',
+        user_type: 'admin'
       }
     });
   } catch (error) {
@@ -337,9 +400,16 @@ app.post('/api/doctors', upload.single('license'), async (req, res) => {
 
 app.get('/api/doctors', async (req, res) => {
   try {
-    const doctors = await Doctor.find({ isAvailable: true, isVerified: true })
-      .populate('userId', 'name email avatar')
-      .select('-license');
+    const doctors = await Doctor.find({ 
+      $or: [
+        { status: 'approved' },
+        { isVerified: true }
+      ],
+      $or: [
+        { active: true },
+        { isAvailable: true }
+      ]
+    }).select('-password -idFront -idBack -syndicateFront -syndicateBack');
     
     res.json(doctors);
   } catch (error) {
@@ -375,9 +445,7 @@ app.get('/api/users', async (req, res) => {
 
 app.get('/api/admin/doctors', async (req, res) => {
   try {
-    const doctors = await Doctor.find({})
-      .populate('userId', 'name email avatar')
-      .select('-license');
+    const doctors = await Doctor.find({}).select('-password -idFront -idBack -syndicateFront -syndicateBack');
     res.json(doctors);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
