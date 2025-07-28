@@ -1,0 +1,2 @@
+This is a test file to verify that static file serving works correctly.
+The uploads directory should be accessible via /uploads/ path. 
