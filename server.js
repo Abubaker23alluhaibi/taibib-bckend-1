@@ -65,8 +65,6 @@ console.log('🔗 Attempting to connect to MongoDB...');
 console.log('📝 MONGO_URI:', MONGO_URI ? 'Set (hidden for security)' : 'Not set');
 
 mongoose.connect(MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
   serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
   connectTimeoutMS: 10000,
