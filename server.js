@@ -174,9 +174,10 @@ const Message = mongoose.model('Message', messageSchema);
 const notificationSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor' },
-  type: String,
-  message: String,
-  read: { type: Boolean, default: false },
+  title: { type: String, required: true },
+  message: { type: String, required: true },
+  type: { type: String, enum: ['appointment', 'reminder', 'system'], default: 'appointment' },
+  isRead: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 const Notification = mongoose.model('Notification', notificationSchema);
@@ -1358,16 +1359,26 @@ app.delete('/user/:id', async (req, res) => {
 app.get('/notifications', async (req, res) => {
   try {
     const { userId, doctorId } = req.query;
-    let filter = {};
-    if (userId) filter.userId = userId;
-    if (doctorId) filter.doctorId = doctorId;
     
-    const notifications = await Notification.find(filter).sort({ createdAt: -1 }).limit(50);
+    console.log('🔔 جلب الإشعارات:', { userId, doctorId });
     
+    let query = {};
+    if (userId) {
+      query.userId = userId;
+    }
+    if (doctorId) {
+      query.doctorId = doctorId;
+    }
+    
+    const notifications = await Notification.find(query)
+      .sort({ createdAt: -1 })
+      .limit(50);
+    
+    console.log(`✅ تم جلب ${notifications.length} إشعار`);
     res.json(notifications);
   } catch (err) {
-    console.error('Error fetching notifications:', err);
-    res.status(500).json({ error: 'حدث خطأ أثناء جلب الإشعارات' });
+    console.error('❌ خطأ في جلب الإشعارات:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب الإشعارات' });
   }
 });
 
@@ -1434,14 +1445,25 @@ app.get('/debug-db', async (req, res) => {
 // تعليم كل إشعارات الدكتور كمقروءة
 app.put('/notifications/mark-read', async (req, res) => {
   try {
-    const { doctorId, userId } = req.query;
-    let filter = {};
-    if (doctorId) filter.doctorId = doctorId;
-    if (userId) filter.userId = userId;
-    await Notification.updateMany(filter, { $set: { read: true } });
-    res.json({ message: 'تم تعليم الإشعارات كمقروءة' });
+    const { userId, doctorId } = req.query;
+    
+    console.log('🔔 تحديد الإشعارات كمقروءة:', { userId, doctorId });
+    
+    let query = { isRead: false };
+    if (userId) {
+      query.userId = userId;
+    }
+    if (doctorId) {
+      query.doctorId = doctorId;
+    }
+    
+    const result = await Notification.updateMany(query, { isRead: true });
+    
+    console.log(`✅ تم تحديد ${result.modifiedCount} إشعار كمقروء`);
+    res.json({ message: `تم تحديد ${result.modifiedCount} إشعار كمقروء` });
   } catch (err) {
-    res.status(500).json({ error: 'حدث خطأ أثناء تعليم الإشعارات كمقروءة' });
+    console.error('❌ خطأ في تحديد الإشعارات كمقروءة:', err);
+    res.status(500).json({ error: 'حدث خطأ في تحديد الإشعارات كمقروءة' });
   }
 });
 
@@ -1458,7 +1480,7 @@ app.post('/send-notification', async (req, res) => {
       doctorId: doctorId ? new mongoose.Types.ObjectId(doctorId) : null,
       type: type || 'general',
       message: message,
-      read: false
+      isRead: false
     });
     
     await notification.save();
@@ -1533,7 +1555,7 @@ app.post('/send-special-appointment-notification', async (req, res) => {
             userId: userId,
             type: 'special_appointment',
             message: message,
-            read: false
+            isRead: false
           });
           await notification.save();
         } catch (e) {}
@@ -1548,7 +1570,7 @@ app.post('/send-special-appointment-notification', async (req, res) => {
         userId: userId,
         type: 'special_appointment',
         message: message,
-        read: false
+        isRead: false
       });
       await notification.save();
       res.json({ 
@@ -1589,7 +1611,7 @@ app.post('/send-medicine-reminder', async (req, res) => {
       userId: userId ? new mongoose.Types.ObjectId(userId) : null,
       type: 'medicine_reminder',
       message: message,
-      read: false
+      isRead: false
     });
     
     await notification.save();
@@ -2911,7 +2933,7 @@ app.post('/add-special-appointment', async (req, res) => {
           userId: foundUser._id,
           type: 'special_appointment',
           message: `تم حجز موعد خاص لك مع الطبيب ${doctorName} بتاريخ ${date} الساعة ${time}`,
-          read: false
+          isRead: false
         });
         await notification.save();
       }
@@ -3198,7 +3220,7 @@ app.post('/api/appointments', async (req, res) => {
       message: `تم حجز موعد جديد من ${user.first_name} في ${date} الساعة ${time}`,
       type: 'appointment',
       appointmentId: appointment._id,
-      read: false
+      isRead: false
     });
     
     await doctorNotification.save();
@@ -3215,7 +3237,7 @@ app.post('/api/appointments', async (req, res) => {
       message: `تم حجز موعدك مع الدكتور ${doctor.name} في ${date} الساعة ${time}`,
       type: 'appointment',
       appointmentId: appointment._id,
-      read: false
+      isRead: false
     });
     
     await userNotification.save();
@@ -3411,9 +3433,9 @@ app.put('/api/notifications/mark-read', async (req, res) => {
       { 
         userId: userId,
         userType: userType || 'user',
-        read: false
+        isRead: false
       },
-      { read: true }
+      { isRead: true }
     );
     
     console.log(`✅ تم تحديث ${result.modifiedCount} إشعار كـ مقروء`);
