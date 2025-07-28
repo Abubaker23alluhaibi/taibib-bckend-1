@@ -307,6 +307,193 @@ app.get('/api/doctors/:id', async (req, res) => {
   }
 });
 
+// Admin Routes
+app.get('/api/users', async (req, res) => {
+  try {
+    const users = await User.find({}).select('-password');
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.get('/api/admin/doctors', async (req, res) => {
+  try {
+    const doctors = await Doctor.find({})
+      .populate('userId', 'name email avatar')
+      .select('-license');
+    res.json(doctors);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.put('/api/doctors/:id/approve', async (req, res) => {
+  try {
+    const doctor = await Doctor.findByIdAndUpdate(
+      req.params.id,
+      { status: 'approved', isVerified: true },
+      { new: true }
+    );
+    
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+    
+    res.json({ message: 'Doctor approved successfully', doctor });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.put('/api/doctors/:id/reject', async (req, res) => {
+  try {
+    const doctor = await Doctor.findByIdAndUpdate(
+      req.params.id,
+      { status: 'rejected' },
+      { new: true }
+    );
+    
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+    
+    res.json({ message: 'Doctor rejected successfully', doctor });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.put('/api/doctors/:id/feature', async (req, res) => {
+  try {
+    const doctor = await Doctor.findByIdAndUpdate(
+      req.params.id,
+      { is_featured: true },
+      { new: true }
+    );
+    
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+    
+    res.json({ message: 'Doctor featured successfully', doctor });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.put('/api/doctors/:id/unfeature', async (req, res) => {
+  try {
+    const doctor = await Doctor.findByIdAndUpdate(
+      req.params.id,
+      { is_featured: false },
+      { new: true }
+    );
+    
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+    
+    res.json({ message: 'Doctor unfeatured successfully', doctor });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.delete('/api/doctors/:id', async (req, res) => {
+  try {
+    const doctor = await Doctor.findByIdAndDelete(req.params.id);
+    
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+    
+    res.json({ message: 'Doctor deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.post('/api/admin/toggle-account/user/:id', async (req, res) => {
+  try {
+    const { disabled } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { disabled },
+      { new: true }
+    );
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    res.json({ message: 'User status updated successfully', user });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.post('/api/admin/toggle-account/doctor/:id', async (req, res) => {
+  try {
+    const { disabled } = req.body;
+    const doctor = await Doctor.findByIdAndUpdate(
+      req.params.id,
+      { disabled },
+      { new: true }
+    );
+    
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+    
+    res.json({ message: 'Doctor status updated successfully', doctor });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Health Centers Routes
+app.get('/api/health-centers', async (req, res) => {
+  try {
+    // Placeholder - you can add a HealthCenter model later
+    res.json([]);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.post('/api/health-centers', async (req, res) => {
+  try {
+    // Placeholder - you can add a HealthCenter model later
+    res.status(201).json({ message: 'Health center created successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.delete('/api/health-centers/:id', async (req, res) => {
+  try {
+    // Placeholder - you can add a HealthCenter model later
+    res.json({ message: 'Health center deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Appointment Routes
 app.post('/api/appointments', async (req, res) => {
   try {
