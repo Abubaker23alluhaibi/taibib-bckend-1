@@ -3048,6 +3048,193 @@ app.get('/doctor-image/:doctorId', async (req, res) => {
   }
 });
 
+// ===== نقاط النهاية للوحة تحكم الأدمن =====
+
+// جلب جميع المستخدمين (للأدمن)
+app.get('/api/users', async (req, res) => {
+  try {
+    console.log('🔍 جلب جميع المستخدمين...');
+    const users = await User.find({}).select('-password').sort({ createdAt: -1 });
+    console.log(`✅ تم جلب ${users.length} مستخدم`);
+    res.json(users);
+  } catch (err) {
+    console.error('❌ خطأ في جلب المستخدمين:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب المستخدمين' });
+  }
+});
+
+// جلب جميع الأطباء (للأدمن)
+app.get('/admin/doctors', async (req, res) => {
+  try {
+    console.log('🔍 جلب جميع الأطباء...');
+    const doctors = await Doctor.find({}).select('-password').sort({ createdAt: -1 });
+    console.log(`✅ تم جلب ${doctors.length} طبيب`);
+    res.json(doctors);
+  } catch (err) {
+    console.error('❌ خطأ في جلب الأطباء:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب الأطباء' });
+  }
+});
+
+// جلب جميع المواعيد (للأدمن)
+app.get('/api/appointments', async (req, res) => {
+  try {
+    console.log('🔍 جلب جميع المواعيد...');
+    const appointments = await Appointment.find({})
+      .populate('userId', 'first_name phone')
+      .populate('doctorId', 'name specialty')
+      .sort({ date: -1, time: -1 });
+    console.log(`✅ تم جلب ${appointments.length} موعد`);
+    res.json(appointments);
+  } catch (err) {
+    console.error('❌ خطأ في جلب المواعيد:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب المواعيد' });
+  }
+});
+
+// جلب جميع المراكز الصحية (للأدمن)
+app.get('/admin/health-centers', async (req, res) => {
+  try {
+    console.log('🔍 جلب جميع المراكز الصحية...');
+    const healthCenters = await HealthCenter.find({}).select('-password').sort({ createdAt: -1 });
+    console.log(`✅ تم جلب ${healthCenters.length} مركز صحي`);
+    res.json(healthCenters);
+  } catch (err) {
+    console.error('❌ خطأ في جلب المراكز الصحية:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب المراكز الصحية' });
+  }
+});
+
+// الموافقة على طبيب
+app.put('/api/doctors/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`🔍 الموافقة على الطبيب: ${id}`);
+    
+    const doctor = await Doctor.findByIdAndUpdate(
+      id, 
+      { status: 'approved' }, 
+      { new: true }
+    );
+    
+    if (!doctor) {
+      return res.status(404).json({ error: 'الطبيب غير موجود' });
+    }
+    
+    console.log(`✅ تمت الموافقة على الطبيب: ${doctor.name}`);
+    res.json({ message: 'تمت الموافقة على الطبيب بنجاح', doctor });
+  } catch (err) {
+    console.error('❌ خطأ في الموافقة على الطبيب:', err);
+    res.status(500).json({ error: 'حدث خطأ في الموافقة على الطبيب' });
+  }
+});
+
+// رفض طبيب
+app.put('/api/doctors/:id/reject', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`🔍 رفض الطبيب: ${id}`);
+    
+    const doctor = await Doctor.findByIdAndUpdate(
+      id, 
+      { status: 'rejected' }, 
+      { new: true }
+    );
+    
+    if (!doctor) {
+      return res.status(404).json({ error: 'الطبيب غير موجود' });
+    }
+    
+    console.log(`✅ تم رفض الطبيب: ${doctor.name}`);
+    res.json({ message: 'تم رفض الطبيب بنجاح', doctor });
+  } catch (err) {
+    console.error('❌ خطأ في رفض الطبيب:', err);
+    res.status(500).json({ error: 'حدث خطأ في رفض الطبيب' });
+  }
+});
+
+// حذف مستخدم
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`🔍 حذف المستخدم: ${id}`);
+    
+    const user = await User.findByIdAndDelete(id);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'المستخدم غير موجود' });
+    }
+    
+    console.log(`✅ تم حذف المستخدم: ${user.first_name}`);
+    res.json({ message: 'تم حذف المستخدم بنجاح' });
+  } catch (err) {
+    console.error('❌ خطأ في حذف المستخدم:', err);
+    res.status(500).json({ error: 'حدث خطأ في حذف المستخدم' });
+  }
+});
+
+// حذف طبيب
+app.delete('/api/doctors/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`🔍 حذف الطبيب: ${id}`);
+    
+    const doctor = await Doctor.findByIdAndDelete(id);
+    
+    if (!doctor) {
+      return res.status(404).json({ error: 'الطبيب غير موجود' });
+    }
+    
+    console.log(`✅ تم حذف الطبيب: ${doctor.name}`);
+    res.json({ message: 'تم حذف الطبيب بنجاح' });
+  } catch (err) {
+    console.error('❌ خطأ في حذف الطبيب:', err);
+    res.status(500).json({ error: 'حدث خطأ في حذف الطبيب' });
+  }
+});
+
+// إحصائيات لوحة التحكم
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    console.log('🔍 جلب إحصائيات لوحة التحكم...');
+    
+    const [
+      totalUsers,
+      totalDoctors,
+      totalAppointments,
+      totalHealthCenters,
+      pendingDoctors,
+      todayAppointments
+    ] = await Promise.all([
+      User.countDocuments(),
+      Doctor.countDocuments(),
+      Appointment.countDocuments(),
+      HealthCenter.countDocuments(),
+      Doctor.countDocuments({ status: 'pending' }),
+      Appointment.countDocuments({ 
+        date: new Date().toISOString().slice(0, 10) 
+      })
+    ]);
+    
+    const stats = {
+      totalUsers,
+      totalDoctors,
+      totalAppointments,
+      totalHealthCenters,
+      pendingDoctors,
+      todayAppointments
+    };
+    
+    console.log('✅ تم جلب الإحصائيات:', stats);
+    res.json(stats);
+  } catch (err) {
+    console.error('❌ خطأ في جلب الإحصائيات:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب الإحصائيات' });
+  }
+});
+
+// ===== نهاية نقاط النهاية للوحة تحكم الأدمن =====
+
 app.use((req, res, next) => {
   console.log('📥 طلب جديد:', req.method, req.url);
   next();
