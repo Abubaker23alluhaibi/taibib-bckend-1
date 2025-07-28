@@ -654,6 +654,9 @@ app.use('*', (req, res) => {
   });
 });
 
+// Suppress deprecation warnings
+process.noDeprecation = true;
+
 // Start server
 const PORT = process.env.PORT || 5000;
 
