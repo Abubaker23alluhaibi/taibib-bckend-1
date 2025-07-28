@@ -3187,10 +3187,22 @@ app.post('/api/appointments', async (req, res) => {
     
     await appointment.save();
     
+    // إرسال إشعار للطبيب
+    console.log(`📧 إرسال إشعار للطبيب: ${doctor.email}`);
+    // هنا يمكن إضافة كود إرسال الإشعار عبر البريد الإلكتروني أو Push Notification
+    
+    // إرسال إشعار للمستخدم
+    console.log(`📧 إرسال إشعار للمستخدم: ${user.email}`);
+    // هنا يمكن إضافة كود إرسال الإشعار عبر البريد الإلكتروني أو Push Notification
+    
     console.log(`✅ تم إنشاء موعد جديد: ${appointment._id}`);
     res.status(201).json({ 
       message: 'تم حجز الموعد بنجاح',
-      appointment 
+      appointment,
+      notifications: {
+        doctor: `تم إرسال إشعار للطبيب: ${doctor.name}`,
+        user: `تم إرسال إشعار للمستخدم: ${user.first_name}`
+      }
     });
   } catch (err) {
     console.error('❌ خطأ في إنشاء الموعد:', err);
@@ -3213,6 +3225,50 @@ app.get('/api/doctor-appointments/:doctorId', async (req, res) => {
     res.json(appointments);
   } catch (err) {
     console.error('❌ خطأ في جلب مواعيد الطبيب:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب المواعيد' });
+  }
+});
+
+// جلب وثائق وصور طبيب معين (للأدمن)
+app.get('/api/doctor-documents/:doctorId', async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    console.log(`🔍 جلب وثائق الطبيب: ${doctorId}`);
+    
+    const doctor = await Doctor.findById(doctorId).select('imageUrl idFrontUrl idBackUrl syndicateFrontUrl syndicateBackUrl');
+    
+    if (!doctor) {
+      return res.status(404).json({ error: 'الطبيب غير موجود' });
+    }
+    
+    console.log(`✅ تم جلب وثائق الطبيب: ${doctorId}`);
+    res.json({
+      imageUrl: doctor.imageUrl,
+      idFrontUrl: doctor.idFrontUrl,
+      idBackUrl: doctor.idBackUrl,
+      syndicateFrontUrl: doctor.syndicateFrontUrl,
+      syndicateBackUrl: doctor.syndicateBackUrl
+    });
+  } catch (err) {
+    console.error('❌ خطأ في جلب وثائق الطبيب:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب الوثائق' });
+  }
+});
+
+// جلب مواعيد مستخدم معين
+app.get('/api/user-appointments/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log(`🔍 جلب مواعيد المستخدم: ${userId}`);
+    
+    const appointments = await Appointment.find({ userId })
+      .populate('doctorId', 'name specialty')
+      .sort({ date: -1, time: -1 });
+    
+    console.log(`✅ تم جلب ${appointments.length} موعد للمستخدم`);
+    res.json(appointments);
+  } catch (err) {
+    console.error('❌ خطأ في جلب مواعيد المستخدم:', err);
     res.status(500).json({ error: 'حدث خطأ في جلب المواعيد' });
   }
 });
@@ -3350,6 +3406,26 @@ app.delete('/api/doctors/:id', async (req, res) => {
   } catch (err) {
     console.error('❌ خطأ في حذف الطبيب:', err);
     res.status(500).json({ error: 'حدث خطأ في حذف الطبيب' });
+  }
+});
+
+// حذف موعد
+app.delete('/api/appointments/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`🔍 حذف الموعد: ${id}`);
+    
+    const appointment = await Appointment.findByIdAndDelete(id);
+    
+    if (!appointment) {
+      return res.status(404).json({ error: 'الموعد غير موجود' });
+    }
+    
+    console.log(`✅ تم حذف الموعد: ${appointment._id}`);
+    res.json({ message: 'تم حذف الموعد بنجاح' });
+  } catch (err) {
+    console.error('❌ خطأ في حذف الموعد:', err);
+    res.status(500).json({ error: 'حدث خطأ في حذف الموعد' });
   }
 });
 
