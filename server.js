@@ -764,6 +764,37 @@ app.get('/api/test-db', async (req, res) => {
   }
 });
 
+// Test static files endpoint
+app.get('/api/test-files', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const uploadsDir = path.join(__dirname, 'uploads');
+    
+    let files = [];
+    if (fs.existsSync(uploadsDir)) {
+      files = fs.readdirSync(uploadsDir).filter(file => 
+        !file.startsWith('.') && file !== '.gitkeep'
+      );
+    }
+    
+    res.json({
+      message: 'Static files test',
+      uploadsDirectory: uploadsDir,
+      filesCount: files.length,
+      files: files.slice(0, 10), // Show first 10 files
+      timestamp: new Date().toISOString(),
+      staticPath: '/uploads'
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Files test failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ 

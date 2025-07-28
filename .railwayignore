@@ -10,5 +10,5 @@ yarn-error.log*
 .gitignore
 README.md
 *.md
-uploads/*
-!uploads/.gitkeep 
+uploads/temp/*
+uploads/cache/* 

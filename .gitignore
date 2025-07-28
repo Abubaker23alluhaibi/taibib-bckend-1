@@ -61,8 +61,10 @@ Thumbs.db
 *.sqlite3
 
 # Uploads (user uploaded files)
-uploads/*
-!uploads/.gitkeep
+uploads/temp/*
+uploads/cache/*
+uploads/*.tmp
+uploads/*.temp
 
 # Temporary files
 *.tmp
