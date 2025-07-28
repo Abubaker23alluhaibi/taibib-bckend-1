@@ -618,8 +618,31 @@ app.delete('/api/health-centers/:id', async (req, res) => {
   }
 });
 
+// Middleware to check if user is authenticated
+const requireAuth = async (req, res, next) => {
+  try {
+    const { patientId } = req.body;
+    
+    if (!patientId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    // Check if user exists in database
+    const user = await User.findById(patientId);
+    if (!user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+    
+    // Add user to request object
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(401).json({ message: 'Authentication failed' });
+  }
+};
+
 // Appointment Routes
-app.post('/api/appointments', async (req, res) => {
+app.post('/api/appointments', requireAuth, async (req, res) => {
   try {
     const { patientId, doctorId, date, time, type, notes, symptoms } = req.body;
     
@@ -689,8 +712,30 @@ app.get('/api/appointments/doctor/:doctorId', async (req, res) => {
   }
 });
 
+// Middleware to check if user exists in database
+const requireUserExists = async (req, res, next) => {
+  try {
+    const { patientId } = req.query;
+    
+    if (!patientId) {
+      return res.status(401).json({ message: 'User ID required' });
+    }
+    
+    // Check if user exists in database
+    const user = await User.findById(patientId);
+    if (!user) {
+      return res.status(401).json({ message: 'User not found in database' });
+    }
+    
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(401).json({ message: 'Authentication failed' });
+  }
+};
+
 // Get booked appointments for a specific doctor on a specific date
-app.get('/api/appointments/:doctorId/:date', async (req, res) => {
+app.get('/api/appointments/:doctorId/:date', requireUserExists, async (req, res) => {
   try {
     const { doctorId, date } = req.params;
     
