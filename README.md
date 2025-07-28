@@ -26,9 +26,9 @@ Backend API for Tabib IQ medical consultation platform built with Node.js, Expre
    ```
 
 2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
 3. **Environment Setup**
    - Copy `env.example` to `.env`
@@ -44,9 +44,9 @@ Backend API for Tabib IQ medical consultation platform built with Node.js, Expre
      ```
 
 4. **Create uploads directory**
-   ```bash
+```bash
    mkdir uploads
-   ```
+```
 
 ## 🚀 Running the Application
 

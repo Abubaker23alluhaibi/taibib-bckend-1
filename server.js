@@ -310,12 +310,16 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
+    console.log('🔍 محاولة تسجيل دخول:', { email });
+    
     // Find user in users collection
     let user = await User.findOne({ email });
+    console.log('🔍 تم البحث في users collection:', !!user);
     
     // If not found in users, check doctors collection
     if (!user) {
       const doctor = await Doctor.findOne({ email });
+      console.log('🔍 تم البحث في doctors collection:', !!doctor);
       if (doctor) {
         user = {
           _id: doctor._id,
@@ -332,6 +336,7 @@ app.post('/api/auth/login', async (req, res) => {
     // If not found in doctors, check admins collection
     if (!user) {
       const admin = await mongoose.connection.db.collection('admins').findOne({ email });
+      console.log('🔍 تم البحث في admins collection:', !!admin);
       if (admin) {
         user = {
           _id: admin._id,
@@ -345,16 +350,21 @@ app.post('/api/auth/login', async (req, res) => {
     }
     
     if (!user) {
+      console.log('❌ لم يتم العثور على المستخدم');
       return res.status(400).json({ message: 'Invalid credentials' });
     }
     
     // Check password
+    console.log('🔍 فحص كلمة المرور');
     const isMatch = await bcrypt.compare(password, user.password);
+    console.log('🔍 تطابق كلمة المرور:', isMatch);
+    
     if (!isMatch) {
+      console.log('❌ كلمة المرور غير صحيحة');
       return res.status(400).json({ message: 'Invalid credentials' });
     }
     
-    res.json({
+    const responseData = {
       message: 'Login successful',
       user: {
         id: user._id,
@@ -363,8 +373,12 @@ app.post('/api/auth/login', async (req, res) => {
         role: user.role || user.user_type,
         avatar: user.avatar || user.image
       }
-    });
+    };
+    
+    console.log('✅ تم تسجيل الدخول بنجاح:', responseData);
+    res.json(responseData);
   } catch (error) {
+    console.error('❌ خطأ في تسجيل الدخول:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
