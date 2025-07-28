@@ -3158,11 +3158,59 @@ app.put('/api/doctors/:id/approve', async (req, res) => {
   }
 });
 
+// الموافقة على طبيب - نقطة نهاية بديلة
+app.put('/doctors/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`🔍 الموافقة على الطبيب (نقطة نهاية بديلة): ${id}`);
+    
+    const doctor = await Doctor.findByIdAndUpdate(
+      id, 
+      { status: 'approved' }, 
+      { new: true }
+    );
+    
+    if (!doctor) {
+      return res.status(404).json({ error: 'الطبيب غير موجود' });
+    }
+    
+    console.log(`✅ تمت الموافقة على الطبيب: ${doctor.name}`);
+    res.json({ message: 'تمت الموافقة على الطبيب بنجاح', doctor });
+  } catch (err) {
+    console.error('❌ خطأ في الموافقة على الطبيب:', err);
+    res.status(500).json({ error: 'حدث خطأ في الموافقة على الطبيب' });
+  }
+});
+
 // رفض طبيب
 app.put('/api/doctors/:id/reject', async (req, res) => {
   try {
     const { id } = req.params;
     console.log(`🔍 رفض الطبيب: ${id}`);
+    
+    const doctor = await Doctor.findByIdAndUpdate(
+      id, 
+      { status: 'rejected' }, 
+      { new: true }
+    );
+    
+    if (!doctor) {
+      return res.status(404).json({ error: 'الطبيب غير موجود' });
+    }
+    
+    console.log(`✅ تم رفض الطبيب: ${doctor.name}`);
+    res.json({ message: 'تم رفض الطبيب بنجاح', doctor });
+  } catch (err) {
+    console.error('❌ خطأ في رفض الطبيب:', err);
+    res.status(500).json({ error: 'حدث خطأ في رفض الطبيب' });
+  }
+});
+
+// رفض طبيب - نقطة نهاية بديلة
+app.put('/doctors/:id/reject', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`🔍 رفض الطبيب (نقطة نهاية بديلة): ${id}`);
     
     const doctor = await Doctor.findByIdAndUpdate(
       id, 
