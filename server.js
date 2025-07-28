@@ -128,8 +128,11 @@ app.get('/', (req, res) => {
     message: 'Tabib IQ API is running!',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
     endpoints: {
       health: '/api/health',
+      test: '/api/test-db',
       auth: {
         register: '/api/auth/register',
         login: '/api/auth/login'
@@ -147,6 +150,11 @@ app.get('/', (req, res) => {
       }
     }
   });
+});
+
+// Simple test endpoint
+app.get('/test', (req, res) => {
+  res.json({ message: 'Test endpoint working!', timestamp: new Date().toISOString() });
 });
 
 // Health Check Endpoint
@@ -651,12 +659,27 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
+    console.log('🔄 Connecting to database...');
     await connectDB();
-    app.listen(PORT, () => {
+    
+    const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
+      console.log(`🔗 Root endpoint: http://localhost:${PORT}/`);
     });
+    
+    // Set timeout for connections
+    server.timeout = 30000; // 30 seconds
+    
+    // Handle server errors
+    server.on('error', (error) => {
+      console.error('❌ Server error:', error);
+      if (error.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use`);
+      }
+    });
+    
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
