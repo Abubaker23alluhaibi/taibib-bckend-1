@@ -689,6 +689,21 @@ app.get('/api/appointments/doctor/:doctorId', async (req, res) => {
   }
 });
 
+// Get all appointments (for admin)
+app.get('/api/appointments', async (req, res) => {
+  try {
+    const appointments = await Appointment.find({})
+      .populate('userId', 'name email')
+      .populate('patientId', 'name email')
+      .populate('doctorId', 'name email')
+      .sort({ createdAt: -1 });
+    
+    res.json(appointments);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 app.put('/api/appointments/:id/status', async (req, res) => {
   try {
     const { status, prescription } = req.body;
