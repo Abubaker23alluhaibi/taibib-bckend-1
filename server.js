@@ -3273,6 +3273,63 @@ app.get('/api/user-appointments/:userId', async (req, res) => {
   }
 });
 
+// جلب مواعيد مستخدم معين - نقطة نهاية بديلة
+app.get('/api/user/:userId/appointments', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log(`🔍 جلب مواعيد المستخدم (بديل): ${userId}`);
+    
+    const appointments = await Appointment.find({ userId })
+      .populate('doctorId', 'name specialty')
+      .sort({ date: -1, time: -1 });
+    
+    console.log(`✅ تم جلب ${appointments.length} موعد للمستخدم (بديل)`);
+    res.json(appointments);
+  } catch (err) {
+    console.error('❌ خطأ في جلب مواعيد المستخدم (بديل):', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب المواعيد' });
+  }
+});
+
+// اختبار قاعدة البيانات - جلب جميع المواعيد
+app.get('/api/test/appointments', async (req, res) => {
+  try {
+    console.log('🔍 اختبار قاعدة البيانات - جلب جميع المواعيد');
+    
+    const appointments = await Appointment.find({})
+      .populate('userId', 'first_name email')
+      .populate('doctorId', 'name specialty')
+      .sort({ createdAt: -1 });
+    
+    console.log(`✅ تم جلب ${appointments.length} موعد من قاعدة البيانات`);
+    res.json({
+      total: appointments.length,
+      appointments: appointments
+    });
+  } catch (err) {
+    console.error('❌ خطأ في اختبار قاعدة البيانات:', err);
+    res.status(500).json({ error: 'حدث خطأ في اختبار قاعدة البيانات' });
+  }
+});
+
+// اختبار قاعدة البيانات - جلب جميع المستخدمين
+app.get('/api/test/users', async (req, res) => {
+  try {
+    console.log('🔍 اختبار قاعدة البيانات - جلب جميع المستخدمين');
+    
+    const users = await User.find({}).select('first_name email createdAt');
+    
+    console.log(`✅ تم جلب ${users.length} مستخدم من قاعدة البيانات`);
+    res.json({
+      total: users.length,
+      users: users
+    });
+  } catch (err) {
+    console.error('❌ خطأ في اختبار قاعدة البيانات:', err);
+    res.status(500).json({ error: 'حدث خطأ في اختبار قاعدة البيانات' });
+  }
+});
+
 // جلب إشعارات المستخدم
 app.get('/api/notifications', async (req, res) => {
   try {
