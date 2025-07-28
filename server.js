@@ -3664,6 +3664,96 @@ app.get('/api/admin/stats', async (req, res) => {
   }
 });
 
+// ===== نقاط نهاية الإشعارات =====
+
+// إنشاء إشعار جديد
+app.post('/notifications', async (req, res) => {
+  try {
+    const { userId, doctorId, title, message, type } = req.body;
+    
+    const notification = new Notification({
+      userId,
+      doctorId,
+      title,
+      message,
+      type: type || 'appointment',
+      isRead: false
+    });
+    
+    await notification.save();
+    console.log(`✅ تم إنشاء إشعار جديد: ${notification._id}`);
+    res.status(201).json(notification);
+  } catch (err) {
+    console.error('❌ خطأ في إنشاء الإشعار:', err);
+    res.status(500).json({ error: 'حدث خطأ في إنشاء الإشعار' });
+  }
+});
+
+// جلب الإشعارات
+app.get('/notifications', async (req, res) => {
+  try {
+    const { userId, doctorId } = req.query;
+    let query = {};
+    
+    if (userId) {
+      query.userId = userId;
+    }
+    if (doctorId) {
+      query.doctorId = doctorId;
+    }
+    
+    const notifications = await Notification.find(query)
+      .sort({ createdAt: -1 })
+      .limit(50);
+    
+    console.log(`✅ تم جلب ${notifications.length} إشعار`);
+    res.json(notifications);
+  } catch (err) {
+    console.error('❌ خطأ في جلب الإشعارات:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب الإشعارات' });
+  }
+});
+
+// تحديد الإشعارات كمقروءة
+app.put('/notifications/mark-read', async (req, res) => {
+  try {
+    const { userId, doctorId } = req.query;
+    let query = {};
+    
+    if (userId) {
+      query.userId = userId;
+    }
+    if (doctorId) {
+      query.doctorId = doctorId;
+    }
+    
+    await Notification.updateMany(query, { isRead: true });
+    console.log(`✅ تم تحديد الإشعارات كمقروءة`);
+    res.json({ message: 'تم تحديد الإشعارات كمقروءة بنجاح' });
+  } catch (err) {
+    console.error('❌ خطأ في تحديد الإشعارات كمقروءة:', err);
+    res.status(500).json({ error: 'حدث خطأ في تحديد الإشعارات كمقروءة' });
+  }
+});
+
+// حذف إشعار
+app.delete('/notifications/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const notification = await Notification.findByIdAndDelete(id);
+    
+    if (!notification) {
+      return res.status(404).json({ error: 'الإشعار غير موجود' });
+    }
+    
+    console.log(`✅ تم حذف الإشعار: ${id}`);
+    res.json({ message: 'تم حذف الإشعار بنجاح' });
+  } catch (err) {
+    console.error('❌ خطأ في حذف الإشعار:', err);
+    res.status(500).json({ error: 'حدث خطأ في حذف الإشعار' });
+  }
+});
+
 // ===== نهاية نقاط النهاية للوحة تحكم الأدمن =====
 
 app.use((req, res, next) => {
