@@ -3063,6 +3063,19 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+// جلب جميع المستخدمين (للأدمن) - نقطة نهاية بديلة
+app.get('/users', async (req, res) => {
+  try {
+    console.log('🔍 جلب جميع المستخدمين (نقطة نهاية بديلة)...');
+    const users = await User.find({}).select('-password').sort({ createdAt: -1 });
+    console.log(`✅ تم جلب ${users.length} مستخدم`);
+    res.json(users);
+  } catch (err) {
+    console.error('❌ خطأ في جلب المستخدمين:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب المستخدمين' });
+  }
+});
+
 // جلب جميع الأطباء (للأدمن)
 app.get('/admin/doctors', async (req, res) => {
   try {
@@ -3131,6 +3144,76 @@ app.get('/admin/health-centers', async (req, res) => {
   } catch (err) {
     console.error('❌ خطأ في جلب المراكز الصحية:', err);
     res.status(500).json({ error: 'حدث خطأ في جلب المراكز الصحية' });
+  }
+});
+
+// حجز موعد جديد
+app.post('/api/appointments', async (req, res) => {
+  try {
+    console.log('🔍 إنشاء موعد جديد...');
+    const { userId, doctorId, date, time, notes } = req.body;
+    
+    // التحقق من البيانات المطلوبة
+    if (!userId || !doctorId || !date || !time) {
+      return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
+    }
+    
+    // التحقق من وجود المستخدم
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'المستخدم غير موجود' });
+    }
+    
+    // التحقق من وجود الطبيب
+    const doctor = await Doctor.findById(doctorId);
+    if (!doctor) {
+      return res.status(404).json({ error: 'الطبيب غير موجود' });
+    }
+    
+    // التحقق من حالة الطبيب
+    if (doctor.status !== 'approved') {
+      return res.status(400).json({ error: 'الطبيب غير مفعل' });
+    }
+    
+    // إنشاء الموعد
+    const appointment = new Appointment({
+      userId,
+      doctorId,
+      date,
+      time,
+      notes: notes || '',
+      status: 'pending'
+    });
+    
+    await appointment.save();
+    
+    console.log(`✅ تم إنشاء موعد جديد: ${appointment._id}`);
+    res.status(201).json({ 
+      message: 'تم حجز الموعد بنجاح',
+      appointment 
+    });
+  } catch (err) {
+    console.error('❌ خطأ في إنشاء الموعد:', err);
+    res.status(500).json({ error: 'حدث خطأ في حجز الموعد' });
+  }
+});
+
+// جلب مواعيد طبيب معين
+app.get('/api/doctor-appointments/:doctorId', async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    console.log(`🔍 جلب مواعيد الطبيب: ${doctorId}`);
+    
+    const appointments = await Appointment.find({ doctorId })
+      .populate('userId', 'first_name phone email')
+      .populate('doctorId', 'name specialty')
+      .sort({ date: 1, time: 1 });
+    
+    console.log(`✅ تم جلب ${appointments.length} موعد للطبيب`);
+    res.json(appointments);
+  } catch (err) {
+    console.error('❌ خطأ في جلب مواعيد الطبيب:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب المواعيد' });
   }
 });
 
