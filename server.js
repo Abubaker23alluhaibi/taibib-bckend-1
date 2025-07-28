@@ -3076,10 +3076,39 @@ app.get('/admin/doctors', async (req, res) => {
   }
 });
 
+// جلب جميع الأطباء (للأدمن) - نقطة نهاية بديلة
+app.get('/api/admin/doctors', async (req, res) => {
+  try {
+    console.log('🔍 جلب جميع الأطباء (نقطة نهاية بديلة)...');
+    const doctors = await Doctor.find({}).select('-password').sort({ createdAt: -1 });
+    console.log(`✅ تم جلب ${doctors.length} طبيب`);
+    res.json(doctors);
+  } catch (err) {
+    console.error('❌ خطأ في جلب الأطباء:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب الأطباء' });
+  }
+});
+
 // جلب جميع المواعيد (للأدمن)
 app.get('/api/appointments', async (req, res) => {
   try {
     console.log('🔍 جلب جميع المواعيد...');
+    const appointments = await Appointment.find({})
+      .populate('userId', 'first_name phone')
+      .populate('doctorId', 'name specialty')
+      .sort({ date: -1, time: -1 });
+    console.log(`✅ تم جلب ${appointments.length} موعد`);
+    res.json(appointments);
+  } catch (err) {
+    console.error('❌ خطأ في جلب المواعيد:', err);
+    res.status(500).json({ error: 'حدث خطأ في جلب المواعيد' });
+  }
+});
+
+// جلب جميع المواعيد (للأدمن) - نقطة نهاية بديلة
+app.get('/appointments', async (req, res) => {
+  try {
+    console.log('🔍 جلب جميع المواعيد (نقطة نهاية بديلة)...');
     const appointments = await Appointment.find({})
       .populate('userId', 'first_name phone')
       .populate('doctorId', 'name specialty')
