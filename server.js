@@ -689,6 +689,23 @@ app.get('/api/appointments/doctor/:doctorId', async (req, res) => {
   }
 });
 
+// Get booked appointments for a specific doctor on a specific date
+app.get('/api/appointments/:doctorId/:date', async (req, res) => {
+  try {
+    const { doctorId, date } = req.params;
+    
+    const appointments = await Appointment.find({
+      doctorId: doctorId,
+      date: date,
+      status: { $in: ['pending', 'confirmed'] }
+    });
+    
+    res.json(appointments);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Get all appointments (for admin)
 app.get('/api/appointments', async (req, res) => {
   try {
