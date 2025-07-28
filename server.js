@@ -204,6 +204,48 @@ app.get('/test', (req, res) => {
   res.json({ message: 'Test endpoint working!', timestamp: new Date().toISOString() });
 });
 
+// Check user authentication status
+app.post('/api/check-auth', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    console.log('🔍 Checking auth for userId:', userId);
+    
+    if (!userId) {
+      return res.status(401).json({ 
+        authenticated: false, 
+        message: 'No user ID provided' 
+      });
+    }
+    
+    const user = await User.findById(userId);
+    console.log('🔍 User found in database:', !!user);
+    
+    if (!user) {
+      return res.status(401).json({ 
+        authenticated: false, 
+        message: 'User not found in database' 
+      });
+    }
+    
+    res.json({ 
+      authenticated: true, 
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        user_type: user.user_type || user.role
+      }
+    });
+  } catch (error) {
+    console.error('❌ check-auth error:', error);
+    res.status(500).json({ 
+      authenticated: false, 
+      message: 'Server error' 
+    });
+  }
+});
+
 // Health Check Endpoint
 app.get('/api/health', async (req, res) => {
   try {
@@ -623,20 +665,27 @@ const requireAuth = async (req, res, next) => {
   try {
     const { patientId } = req.body;
     
+    console.log('🔍 requireAuth - patientId:', patientId);
+    
     if (!patientId) {
+      console.log('❌ No patientId provided');
       return res.status(401).json({ message: 'Authentication required' });
     }
     
     // Check if user exists in database
     const user = await User.findById(patientId);
+    console.log('🔍 requireAuth - user found:', !!user);
+    
     if (!user) {
-      return res.status(401).json({ message: 'User not found' });
+      console.log('❌ User not found in database');
+      return res.status(401).json({ message: 'User not found in database' });
     }
     
     // Add user to request object
     req.user = user;
     next();
   } catch (error) {
+    console.error('❌ requireAuth error:', error);
     res.status(401).json({ message: 'Authentication failed' });
   }
 };
@@ -646,11 +695,17 @@ app.post('/api/appointments', requireAuth, async (req, res) => {
   try {
     const { patientId, doctorId, date, time, type, notes, symptoms } = req.body;
     
+    console.log('🔍 Booking appointment:', { patientId, doctorId, date, time });
+    
     // Check if patient and doctor exist
     const patient = await User.findById(patientId);
     const doctor = await Doctor.findById(doctorId);
     
+    console.log('🔍 Patient found:', !!patient);
+    console.log('🔍 Doctor found:', !!doctor);
+    
     if (!patient || !doctor) {
+      console.log('❌ Invalid patient or doctor');
       return res.status(400).json({ message: 'Invalid patient or doctor' });
     }
     
