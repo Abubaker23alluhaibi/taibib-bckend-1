@@ -3288,11 +3288,20 @@ app.get('/api/user-appointments/:userId', async (req, res) => {
     console.log(`🔍 جلب مواعيد المستخدم: ${userId}`);
     
     const appointments = await Appointment.find({ userId })
-      .populate('doctorId', 'name specialty')
+      .populate('doctorId', 'name specialty email phone')
       .sort({ date: -1, time: -1 });
     
-    console.log(`✅ تم جلب ${appointments.length} موعد للمستخدم`);
-    res.json(appointments);
+    // إضافة اسم الطبيب إذا لم يكن موجوداً
+    const appointmentsWithDoctorName = appointments.map(appointment => {
+      const appointmentObj = appointment.toObject();
+      if (!appointmentObj.doctorName && appointmentObj.doctorId) {
+        appointmentObj.doctorName = appointmentObj.doctorId.name || 'دكتور غير محدد';
+      }
+      return appointmentObj;
+    });
+    
+    console.log(`✅ تم جلب ${appointmentsWithDoctorName.length} موعد للمستخدم`);
+    res.json(appointmentsWithDoctorName);
   } catch (err) {
     console.error('❌ خطأ في جلب مواعيد المستخدم:', err);
     res.status(500).json({ error: 'حدث خطأ في جلب المواعيد' });
@@ -3306,11 +3315,20 @@ app.get('/api/user/:userId/appointments', async (req, res) => {
     console.log(`🔍 جلب مواعيد المستخدم (بديل): ${userId}`);
     
     const appointments = await Appointment.find({ userId })
-      .populate('doctorId', 'name specialty')
+      .populate('doctorId', 'name specialty email phone')
       .sort({ date: -1, time: -1 });
     
-    console.log(`✅ تم جلب ${appointments.length} موعد للمستخدم (بديل)`);
-    res.json(appointments);
+    // إضافة اسم الطبيب إذا لم يكن موجوداً
+    const appointmentsWithDoctorName = appointments.map(appointment => {
+      const appointmentObj = appointment.toObject();
+      if (!appointmentObj.doctorName && appointmentObj.doctorId) {
+        appointmentObj.doctorName = appointmentObj.doctorId.name || 'دكتور غير محدد';
+      }
+      return appointmentObj;
+    });
+    
+    console.log(`✅ تم جلب ${appointmentsWithDoctorName.length} موعد للمستخدم (بديل)`);
+    res.json(appointmentsWithDoctorName);
   } catch (err) {
     console.error('❌ خطأ في جلب مواعيد المستخدم (بديل):', err);
     res.status(500).json({ error: 'حدث خطأ في جلب المواعيد' });
