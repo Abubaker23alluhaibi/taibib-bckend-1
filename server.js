@@ -122,6 +122,33 @@ const User = mongoose.model('User', userSchema);
 const Doctor = mongoose.model('Doctor', doctorSchema);
 const Appointment = mongoose.model('Appointment', appointmentSchema);
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Tabib IQ API is running!',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/api/health',
+      auth: {
+        register: '/api/auth/register',
+        login: '/api/auth/login'
+      },
+      doctors: {
+        list: '/api/doctors',
+        create: '/api/doctors',
+        get: '/api/doctors/:id'
+      },
+      appointments: {
+        create: '/api/appointments',
+        patient: '/api/appointments/patient/:patientId',
+        doctor: '/api/appointments/doctor/:doctorId',
+        update: '/api/appointments/:id/status'
+      }
+    }
+  });
+});
+
 // Health Check Endpoint
 app.get('/api/health', async (req, res) => {
   try {
@@ -384,9 +411,52 @@ app.use((error, req, res, next) => {
   res.status(500).json({ message: 'Something went wrong!', error: error.message });
 });
 
+// Test database connection endpoint
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const dbStatus = mongoose.connection.readyState;
+    const statusText = {
+      0: 'disconnected',
+      1: 'connected',
+      2: 'connecting',
+      3: 'disconnecting'
+    };
+    
+    res.json({
+      message: 'Database connection test',
+      status: statusText[dbStatus] || 'unknown',
+      readyState: dbStatus,
+      timestamp: new Date().toISOString(),
+      database: mongoose.connection.name || 'Not connected'
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Database test failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // 404 handler
 app.use('*', (req, res) => {
-  res.status(404).json({ message: 'Route not found' });
+  res.status(404).json({ 
+    message: 'Route not found',
+    availableRoutes: [
+      'GET /',
+      'GET /api/health',
+      'GET /api/test-db',
+      'POST /api/auth/register',
+      'POST /api/auth/login',
+      'GET /api/doctors',
+      'POST /api/doctors',
+      'GET /api/doctors/:id',
+      'POST /api/appointments',
+      'GET /api/appointments/patient/:patientId',
+      'GET /api/appointments/doctor/:doctorId',
+      'PUT /api/appointments/:id/status'
+    ]
+  });
 });
 
 // Start server

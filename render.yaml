@@ -9,13 +9,17 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 10000
+        value: 5000
       - key: MONGO_URI
         sync: false
       - key: JWT_SECRET
         sync: false
       - key: CORS_ORIGIN
         sync: false
+      - key: MAX_FILE_SIZE
+        value: 5242880
+      - key: UPLOAD_PATH
+        value: ./uploads
 
   - type: web
     name: tabib-iq-frontend
@@ -25,4 +29,4 @@ services:
     staticPublishPath: ./build
     envVars:
       - key: REACT_APP_API_URL
-        value: https://tabib-iq-backend.onrender.com 
+        value: https://api.tabib-iq.com/api 
