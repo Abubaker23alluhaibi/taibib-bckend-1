@@ -410,6 +410,81 @@ app.get('/api/check-users', async (req, res) => {
   }
 });
 
+// Doctor registration endpoint - تسجيل الأطباء
+app.post('/api/doctors', upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'idFront', maxCount: 1 },
+  { name: 'idBack', maxCount: 1 },
+  { name: 'syndicateFront', maxCount: 1 },
+  { name: 'syndicateBack', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    console.log('📤 تسجيل طبيب جديد...');
+    
+    const {
+      name, email, phone, password, specialty, province, area, 
+      clinicLocation, about, experienceYears, workTimes
+    } = req.body;
+
+    // التحقق من وجود المستخدم
+    const existingUser = await User.findOne({ 
+      $or: [{ email }, { phone }] 
+    });
+    
+    if (existingUser) {
+      return res.status(400).json({ 
+        error: 'البريد الإلكتروني أو رقم الهاتف مسجل مسبقاً' 
+      });
+    }
+
+    // تشفير كلمة المرور
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // معالجة الصور المرفوعة
+    const imagePath = req.files?.image ? `/uploads/${req.files.image[0].filename}` : null;
+    const idFrontPath = req.files?.idFront ? `/uploads/${req.files.idFront[0].filename}` : null;
+    const idBackPath = req.files?.idBack ? `/uploads/${req.files.idBack[0].filename}` : null;
+    const syndicateFrontPath = req.files?.syndicateFront ? `/uploads/${req.files.syndicateFront[0].filename}` : null;
+    const syndicateBackPath = req.files?.syndicateBack ? `/uploads/${req.files.syndicateBack[0].filename}` : null;
+
+    // إنشاء الطبيب الجديد
+    const newDoctor = new User({
+      name,
+      email,
+      phone,
+      password: hashedPassword,
+      user_type: 'doctor',
+      specialty,
+      province,
+      area,
+      clinicLocation,
+      about,
+      experienceYears,
+      workTimes: workTimes ? JSON.parse(workTimes) : [],
+      profileImage: imagePath,
+      idFront: idFrontPath,
+      idBack: idBackPath,
+      syndicateFront: syndicateFrontPath,
+      syndicateBack: syndicateBackPath,
+      status: 'pending', // في انتظار الموافقة
+      isVerified: false,
+      isAvailable: false
+    });
+
+    await newDoctor.save();
+    
+    console.log('✅ تم تسجيل الطبيب بنجاح:', newDoctor._id);
+    res.status(201).json({ 
+      message: 'تم تسجيل الطبيب بنجاح، في انتظار الموافقة',
+      doctorId: newDoctor._id 
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في تسجيل الطبيب:', error);
+    res.status(500).json({ error: 'خطأ في الخادم' });
+  }
+});
+
 // Create sample doctors endpoint - إنشاء أطباء تجريبيين
 app.post('/api/create-sample-doctors', async (req, res) => {
   try {
