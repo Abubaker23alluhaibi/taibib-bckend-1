@@ -18,7 +18,8 @@
     "start:smart": "node server-smart.js",
     "start:real-users": "node server-real-users.js",
     "dev": "nodemon server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install": "npm install --omit=dev"
   },
   "keywords": ["medical", "consultation", "healthcare", "api"],
   "author": "Tabib IQ Team",

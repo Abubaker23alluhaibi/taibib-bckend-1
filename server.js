@@ -9,8 +9,14 @@ require('dotenv').config();
 const app = express();
 
 const corsOptions = {
-  origin: true, // Allow all origins temporarily
-  credentials: false, // Disable credentials for now
+  origin: [
+    'https://tabib-iq.com',
+    'https://www.tabib-iq.com',
+    'http://localhost:3000',
+    'https://tabib-iq-frontend.vercel.app',
+    'https://tabib-iq-frontend-git-main.vercel.app'
+  ],
+  credentials: false,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept', 'X-Requested-With'],
   preflightContinue: false,
@@ -21,6 +27,33 @@ app.use(cors(corsOptions));
 
 // Handle preflight requests
 app.options('*', cors(corsOptions));
+
+// Additional CORS middleware for extra security
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    'https://tabib-iq.com',
+    'https://www.tabib-iq.com',
+    'http://localhost:3000',
+    'https://tabib-iq-frontend.vercel.app',
+    'https://tabib-iq-frontend-git-main.vercel.app'
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, Accept, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'false');
+  
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  next();
+});
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
