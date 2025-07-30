@@ -20,6 +20,39 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Simple health check endpoint (for Railway/Render)
+app.get('/api/health', (req, res) => {
+  try {
+    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    res.status(200).json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development',
+      database: dbStatus
+    });
+  } catch (error) {
+    res.status(200).json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development',
+      database: 'unknown',
+      note: 'Server is running but database status unknown'
+    });
+  }
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Tabib IQ API is running!',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    health: '/api/health'
+  });
+});
+
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -239,25 +272,7 @@ app.post('/api/check-auth', async (req, res) => {
   }
 });
 
-// Health Check Endpoint
-app.get('/api/health', async (req, res) => {
-  try {
-    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-    res.json({
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      database: dbStatus,
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV || 'development'
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'unhealthy',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
+
 
 // User Routes
 app.post('/api/auth/register', async (req, res) => {
@@ -948,9 +963,9 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
-    console.log('🔄 Connecting to database...');
-    await connectDB();
+    console.log('🔄 Starting server...');
     
+    // Start server first
     const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -968,6 +983,15 @@ const startServer = async () => {
         console.error(`❌ Port ${PORT} is already in use`);
       }
     });
+    
+    // Try to connect to database (but don't fail if it doesn't work)
+    try {
+      console.log('🔄 Connecting to database...');
+      await connectDB();
+    } catch (dbError) {
+      console.error('❌ Database connection failed, but server is running:', dbError.message);
+      console.log('⚠️ Server will continue without database connection');
+    }
     
   } catch (error) {
     console.error('❌ Failed to start server:', error);

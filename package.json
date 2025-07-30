@@ -23,7 +23,8 @@
     "nodemon": "^2.0.22"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "18.x",
+    "npm": "9.x"
   },
   "overrides": {
     "punycode": "2.3.1"
