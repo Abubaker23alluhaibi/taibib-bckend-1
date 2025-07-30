@@ -256,14 +256,25 @@ app.post('/api/auth/login', async (req, res) => {
 // Register endpoint
 app.post('/api/auth/register', async (req, res) => {
   try {
+    console.log('📤 تسجيل مستخدم جديد...');
+    console.log('📋 البيانات المستلمة:', req.body);
+    
     const { name, email, password, phone, user_type } = req.body;
     
     if (!name || !email || !password) {
+      console.log('❌ بيانات ناقصة:', { name: !!name, email: !!email, password: !!password });
       return res.status(400).json({ message: 'Name, email and password are required' });
+    }
+    
+    // التحقق من اتصال قاعدة البيانات
+    if (mongoose.connection.readyState !== 1) {
+      console.error('❌ قاعدة البيانات غير متصلة');
+      return res.status(500).json({ message: 'Database connection error' });
     }
     
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      console.log('❌ المستخدم موجود مسبقاً:', email);
       return res.status(400).json({ message: 'User already exists' });
     }
     
@@ -278,7 +289,9 @@ app.post('/api/auth/register', async (req, res) => {
       user_type: user_type || 'user'
     });
     
+    console.log('💾 حفظ المستخدم في قاعدة البيانات...');
     await user.save();
+    console.log('✅ تم حفظ المستخدم بنجاح:', user._id);
     
     res.status(201).json({
       success: true,
@@ -293,7 +306,7 @@ app.post('/api/auth/register', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Register error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error: ' + error.message });
   }
 });
 
@@ -341,6 +354,37 @@ app.get('/api/doctors', async (req, res) => {
     res.json(activeDoctors);
   } catch (error) {
     console.error('❌ Get doctors error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Check all users endpoint - فحص جميع المستخدمين
+app.get('/api/check-users', async (req, res) => {
+  try {
+    console.log('🔍 فحص جميع المستخدمين...');
+    
+    const allUsers = await User.find({}).select('name email phone user_type createdAt status');
+    const users = allUsers.filter(user => user.user_type === 'user');
+    const doctors = allUsers.filter(user => user.user_type === 'doctor');
+    const admins = allUsers.filter(user => user.user_type === 'admin');
+    
+    console.log(`📊 إجمالي المستخدمين: ${allUsers.length}`);
+    console.log(`👥 المستخدمين العاديين: ${users.length}`);
+    console.log(`👨‍⚕️ الأطباء: ${doctors.length}`);
+    console.log(`👨‍💼 المديرين: ${admins.length}`);
+    
+    res.json({
+      total: allUsers.length,
+      users: users.length,
+      doctors: doctors.length,
+      admins: admins.length,
+      allUsers: allUsers,
+      users: users,
+      doctors: doctors,
+      admins: admins
+    });
+  } catch (error) {
+    console.error('❌ Check users error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -420,11 +464,27 @@ app.post('/api/doctors', upload.fields([
 ]), async (req, res) => {
   try {
     console.log('📤 تسجيل طبيب جديد...');
+    console.log('📋 البيانات المستلمة:', req.body);
+    console.log('📁 الملفات المرفوعة:', req.files);
     
     const {
       name, email, phone, password, specialty, province, area, 
       clinicLocation, about, experienceYears, workTimes
     } = req.body;
+
+    // التحقق من البيانات المطلوبة
+    if (!name || !email || !password) {
+      console.log('❌ بيانات ناقصة:', { name: !!name, email: !!email, password: !!password });
+      return res.status(400).json({ 
+        error: 'الاسم والبريد الإلكتروني وكلمة المرور مطلوبة' 
+      });
+    }
+
+    // التحقق من اتصال قاعدة البيانات
+    if (mongoose.connection.readyState !== 1) {
+      console.error('❌ قاعدة البيانات غير متصلة');
+      return res.status(500).json({ error: 'خطأ في اتصال قاعدة البيانات' });
+    }
 
     // التحقق من وجود المستخدم
     const existingUser = await User.findOne({ 
@@ -432,6 +492,7 @@ app.post('/api/doctors', upload.fields([
     });
     
     if (existingUser) {
+      console.log('❌ المستخدم موجود مسبقاً:', { email, phone });
       return res.status(400).json({ 
         error: 'البريد الإلكتروني أو رقم الهاتف مسجل مسبقاً' 
       });
@@ -446,6 +507,10 @@ app.post('/api/doctors', upload.fields([
     const idBackPath = req.files?.idBack ? `/uploads/${req.files.idBack[0].filename}` : null;
     const syndicateFrontPath = req.files?.syndicateFront ? `/uploads/${req.files.syndicateFront[0].filename}` : null;
     const syndicateBackPath = req.files?.syndicateBack ? `/uploads/${req.files.syndicateBack[0].filename}` : null;
+
+    console.log('📁 مسارات الملفات:', {
+      imagePath, idFrontPath, idBackPath, syndicateFrontPath, syndicateBackPath
+    });
 
     // إنشاء الطبيب الجديد
     const newDoctor = new User({
@@ -471,6 +536,7 @@ app.post('/api/doctors', upload.fields([
       isAvailable: false
     });
 
+    console.log('💾 حفظ الطبيب في قاعدة البيانات...');
     await newDoctor.save();
     
     console.log('✅ تم تسجيل الطبيب بنجاح:', newDoctor._id);
@@ -481,7 +547,7 @@ app.post('/api/doctors', upload.fields([
     
   } catch (error) {
     console.error('❌ خطأ في تسجيل الطبيب:', error);
-    res.status(500).json({ error: 'خطأ في الخادم' });
+    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
   }
 });
 
