@@ -1,0 +1,5 @@
+[33m9693d64[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix CORS and MongoDB issues - create working server with mock data
+[33m21ec50b[m Fix MongoDB URI and create final server with CORS and real database
+[33mfe24ec9[m Add CORS fixed server to resolve cross-origin issues
+[33m9432780[m Switch back to real database with updated MongoDB URI
+[33mcb48927[m Add test users server with mock data for testing

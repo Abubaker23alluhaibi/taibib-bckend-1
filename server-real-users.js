@@ -9,15 +9,17 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS middleware - allow all origins
+// CORS middleware - FIXED for all origins
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.status(200).end();
+    return;
   }
   next();
 });
@@ -36,20 +38,22 @@ const connectDB = async () => {
   }
 };
 
-// User Schema (for regular users)
+// User Schema - matches real database structure
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
-  phone: { type: String, required: true },
+  phone: { type: String },
   password: { type: String, required: true },
   user_type: { type: String, enum: ['user', 'doctor', 'admin'], required: true },
+  role: { type: String }, // For admin role
   specialty: { type: String },
   address: { type: String },
   experience: { type: String },
   education: { type: String },
   isActive: { type: Boolean, default: true },
+  active: { type: Boolean, default: true }, // Alternative field name
   createdAt: { type: Date, default: Date.now }
-});
+}, { strict: false }); // Allow additional fields
 
 // Initialize models
 let User = null;
@@ -96,12 +100,33 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(503).json({ message: 'قاعدة البيانات غير متاحة حالياً' });
     }
     
-    // Find user by email and login type
-    const user = await User.findOne({ 
-      email: email, 
-      user_type: loginType,
-      isActive: true 
-    });
+    // Find user by email and login type - handle real database structure
+    let user;
+    
+    if (loginType === 'admin') {
+      // For admin, check both user_type and role fields
+      user = await User.findOne({ 
+        email: email, 
+        $or: [
+          { user_type: 'admin' },
+          { role: 'admin' }
+        ],
+        $or: [
+          { isActive: true },
+          { active: true }
+        ]
+      });
+    } else {
+      // For users and doctors
+      user = await User.findOne({ 
+        email: email, 
+        user_type: loginType,
+        $or: [
+          { isActive: true },
+          { active: true }
+        ]
+      });
+    }
     
     if (!user) {
       return res.status(401).json({ 
@@ -149,7 +174,7 @@ app.post('/api/auth/register', async (req, res) => {
     
     const { name, email, phone, password, user_type, specialty, address, experience, education } = req.body;
     
-    if (!name || !email || !phone || !password || !user_type) {
+    if (!name || !email || !password || !user_type) {
       return res.status(400).json({ message: 'جميع الحقول المطلوبة يجب ملؤها' });
     }
     
@@ -253,6 +278,154 @@ app.get('/api/users/:type', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'خطأ في الخادم', error: error.message });
+  }
+});
+
+// Get real users from database
+app.get('/api/real-users', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ message: 'قاعدة البيانات غير متاحة حالياً' });
+    }
+
+    // Get all users from database
+    const allUsers = await User.find({}, { password: 0 }).sort({ createdAt: -1 });
+    
+    // Categorize users
+    const admins = allUsers.filter(user => user.role === 'admin' || user.user_type === 'admin');
+    const doctors = allUsers.filter(user => user.user_type === 'doctor');
+    const users = allUsers.filter(user => user.user_type === 'user');
+
+    res.json({
+      message: 'المستخدمين الحقيقيين من قاعدة البيانات',
+      total: allUsers.length,
+      admins: {
+        count: admins.length,
+        users: admins
+      },
+      doctors: {
+        count: doctors.length,
+        users: doctors
+      },
+      users: {
+        count: users.length,
+        users: users
+      },
+      allUsers: allUsers
+    });
+
+  } catch (error) {
+    console.error('Get real users error:', error);
+    res.status(500).json({ message: 'خطأ في استخراج المستخدمين', error: error.message });
+  }
+});
+
+// Create real users endpoint
+app.post('/api/setup-users', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ message: 'قاعدة البيانات غير متاحة حالياً' });
+    }
+
+    // Real users data
+    const realUsers = [
+      {
+        name: 'أحمد محمد علي',
+        email: 'ahmed@tabib-iq.com',
+        phone: '07701234567',
+        password: '123456',
+        user_type: 'user',
+        isActive: true
+      },
+      {
+        name: 'د. سارة أحمد حسن',
+        email: 'sara@tabib-iq.com',
+        phone: '07701234568',
+        password: '123456',
+        user_type: 'doctor',
+        specialty: 'طب عام',
+        experience: '5 سنوات',
+        education: 'دكتوراه في الطب',
+        isActive: true
+      },
+      {
+        name: 'د. محمد علي كريم',
+        email: 'mohammed@tabib-iq.com',
+        phone: '07701234569',
+        password: '123456',
+        user_type: 'doctor',
+        specialty: 'طب القلب',
+        experience: '10 سنوات',
+        education: 'دكتوراه في أمراض القلب',
+        isActive: true
+      },
+      {
+        name: 'د. فاطمة حسن أحمد',
+        email: 'fatima@tabib-iq.com',
+        phone: '07701234570',
+        password: '123456',
+        user_type: 'doctor',
+        specialty: 'طب الأطفال',
+        experience: '8 سنوات',
+        education: 'دكتوراه في طب الأطفال',
+        isActive: true
+      },
+      {
+        name: 'مدير النظام',
+        email: 'admin@tabib-iq.com',
+        phone: '07701234571',
+        password: '123456',
+        user_type: 'admin',
+        isActive: true
+      }
+    ];
+
+    let createdUsers = [];
+    let errors = [];
+
+    for (const userData of realUsers) {
+      try {
+        // Check if user already exists
+        const existingUser = await User.findOne({ email: userData.email });
+        if (existingUser) {
+          errors.push(`المستخدم ${userData.email} موجود بالفعل`);
+          continue;
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(userData.password, 10);
+
+        // Create new user
+        const newUser = new User({
+          ...userData,
+          password: hashedPassword
+        });
+
+        await newUser.save();
+        createdUsers.push({
+          name: newUser.name,
+          email: newUser.email,
+          user_type: newUser.user_type,
+          specialty: newUser.specialty
+        });
+
+        console.log(`✅ تم إنشاء المستخدم: ${newUser.name} (${newUser.email})`);
+      } catch (error) {
+        errors.push(`خطأ في إنشاء ${userData.email}: ${error.message}`);
+      }
+    }
+
+    res.json({
+      message: 'تم إنشاء المستخدمين الحقيقيين',
+      created: createdUsers.length,
+      errors: errors.length,
+      createdUsers: createdUsers,
+      errors: errors
+    });
+
+  } catch (error) {
+    console.error('Setup users error:', error);
+    res.status(500).json({ message: 'خطأ في إنشاء المستخدمين', error: error.message });
   }
 });
 
