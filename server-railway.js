@@ -1155,6 +1155,171 @@ app.put('/api/notifications/:notificationId/read', async (req, res) => {
   }
 });
 
+// Update user profile endpoint - تحديث بيانات المستخدم
+app.put('/api/user/:userId', async (req, res) => {
+  try {
+    console.log('📤 تحديث بيانات المستخدم...');
+    console.log('📋 البيانات المستلمة:', req.body);
+    
+    const { userId } = req.params;
+    const updates = req.body;
+    
+    // التحقق من وجود المستخدم
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'المستخدم غير موجود' });
+    }
+    
+    // التحقق من نوع المستخدم
+    if (user.user_type !== 'user') {
+      return res.status(403).json({ error: 'غير مصرح بتحديث هذا النوع من المستخدمين' });
+    }
+    
+    // تحديث البيانات المسموح بها فقط
+    const allowedUpdates = ['name', 'email', 'phone', 'profileImage'];
+    const filteredUpdates = {};
+    
+    allowedUpdates.forEach(field => {
+      if (updates[field] !== undefined) {
+        filteredUpdates[field] = updates[field];
+      }
+    });
+    
+    console.log('🔍 البيانات المحدثة:', filteredUpdates);
+    
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      filteredUpdates,
+      { new: true, runValidators: true }
+    );
+    
+    console.log('✅ تم تحديث المستخدم بنجاح:', updatedUser._id);
+    
+    res.json({
+      success: true,
+      user: {
+        _id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        phone: updatedUser.phone,
+        user_type: updatedUser.user_type,
+        profileImage: updatedUser.profileImage
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في تحديث المستخدم:', error);
+    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
+  }
+});
+
+// Change password endpoint - تغيير كلمة المرور
+app.put('/api/change-password/:userId', async (req, res) => {
+  try {
+    console.log('📤 تغيير كلمة المرور...');
+    
+    const { userId } = req.params;
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'كلمة المرور الحالية والجديدة مطلوبة' });
+    }
+    
+    // التحقق من وجود المستخدم
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'المستخدم غير موجود' });
+    }
+    
+    // التحقق من كلمة المرور الحالية
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({ error: 'كلمة المرور الحالية غير صحيحة' });
+    }
+    
+    // تشفير كلمة المرور الجديدة
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    
+    // تحديث كلمة المرور
+    await User.findByIdAndUpdate(userId, { password: hashedNewPassword });
+    
+    console.log('✅ تم تغيير كلمة المرور بنجاح');
+    
+    res.json({
+      success: true,
+      message: 'تم تغيير كلمة المرور بنجاح'
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في تغيير كلمة المرور:', error);
+    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
+  }
+});
+
+// Update doctor profile endpoint - تحديث بيانات الطبيب
+app.put('/api/doctor/:doctorId', async (req, res) => {
+  try {
+    console.log('📤 تحديث بيانات الطبيب...');
+    console.log('📋 البيانات المستلمة:', req.body);
+    
+    const { doctorId } = req.params;
+    const updates = req.body;
+    
+    // التحقق من وجود الطبيب
+    const doctor = await User.findById(doctorId);
+    if (!doctor) {
+      return res.status(404).json({ error: 'الطبيب غير موجود' });
+    }
+    
+    // التحقق من نوع المستخدم
+    if (doctor.user_type !== 'doctor') {
+      return res.status(403).json({ error: 'غير مصرح بتحديث هذا النوع من المستخدمين' });
+    }
+    
+    // تحديث البيانات المسموح بها فقط
+    const allowedUpdates = ['name', 'email', 'phone', 'profileImage', 'specialty', 'address', 'experience', 'education', 'city', 'workTimes'];
+    const filteredUpdates = {};
+    
+    allowedUpdates.forEach(field => {
+      if (updates[field] !== undefined) {
+        filteredUpdates[field] = updates[field];
+      }
+    });
+    
+    console.log('🔍 البيانات المحدثة:', filteredUpdates);
+    
+    const updatedDoctor = await User.findByIdAndUpdate(
+      doctorId,
+      filteredUpdates,
+      { new: true, runValidators: true }
+    );
+    
+    console.log('✅ تم تحديث الطبيب بنجاح:', updatedDoctor._id);
+    
+    res.json({
+      success: true,
+      doctor: {
+        _id: updatedDoctor._id,
+        name: updatedDoctor.name,
+        email: updatedDoctor.email,
+        phone: updatedDoctor.phone,
+        user_type: updatedDoctor.user_type,
+        specialty: updatedDoctor.specialty,
+        address: updatedDoctor.address,
+        experience: updatedDoctor.experience,
+        education: updatedDoctor.education,
+        city: updatedDoctor.city,
+        workTimes: updatedDoctor.workTimes,
+        profileImage: updatedDoctor.profileImage
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في تحديث الطبيب:', error);
+    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
