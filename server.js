@@ -190,11 +190,6 @@ const appointmentSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// Models
-const User = mongoose.model('User', userSchema);
-const Doctor = mongoose.model('Doctor', doctorSchema);
-const Appointment = mongoose.model('Appointment', appointmentSchema);
-
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -233,6 +228,13 @@ app.get('/test', (req, res) => {
 // Check user authentication status
 app.post('/api/check-auth', async (req, res) => {
   try {
+    if (!User) {
+      return res.status(503).json({ 
+        authenticated: false, 
+        message: 'Database not connected' 
+      });
+    }
+    
     const { userId } = req.body;
     
     console.log('🔍 Checking auth for userId:', userId);
@@ -961,6 +963,9 @@ process.noDeprecation = true;
 // Start server
 const PORT = process.env.PORT || 5000;
 
+// Initialize models after database connection
+let User, Doctor, Appointment;
+
 const startServer = async () => {
   try {
     console.log('🔄 Starting server...');
@@ -988,6 +993,13 @@ const startServer = async () => {
     try {
       console.log('🔄 Connecting to database...');
       await connectDB();
+      
+      // Initialize models after successful database connection
+      User = mongoose.model('User', userSchema);
+      Doctor = mongoose.model('Doctor', doctorSchema);
+      Appointment = mongoose.model('Appointment', appointmentSchema);
+      console.log('✅ Models initialized successfully');
+      
     } catch (dbError) {
       console.error('❌ Database connection failed, but server is running:', dbError.message);
       console.log('⚠️ Server will continue without database connection');

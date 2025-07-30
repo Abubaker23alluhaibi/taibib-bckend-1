@@ -1,0 +1,14 @@
+{
+  "name": "tabib-iq-backend-simple",
+  "version": "1.0.0",
+  "main": "server-test.js",
+  "scripts": {
+    "start": "node server-test.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+} 

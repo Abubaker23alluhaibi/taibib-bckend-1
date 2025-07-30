@@ -81,4 +81,7 @@ __tests__/
 
 # Documentation files (keep only essential ones)
 *.md
-!README.md 
+!README.md
+
+# Railway specific
+.railway/ 
