@@ -9,15 +9,17 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS middleware - allow all origins
+// CORS middleware - FIXED for all origins
 app.use((req, res, next) => {
+  // Allow all origins
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.status(200).end();
+    return;
   }
   next();
 });
@@ -36,7 +38,7 @@ const connectDB = async () => {
   }
 };
 
-// User Schema (for regular users)
+// User Schema
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
@@ -51,7 +53,6 @@ const userSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// Initialize models
 let User = null;
 
 // Health check
@@ -62,8 +63,9 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
-    message: 'Real Users Server is running',
-    database: dbStatus
+    message: 'Final Server is running',
+    database: dbStatus,
+    cors: 'enabled'
   });
 });
 
@@ -71,11 +73,12 @@ app.get('/api/health', (req, res) => {
 app.get('/', (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   res.json({
-    message: 'Tabib IQ API is running! (Real Users Only)',
+    message: 'Tabib IQ API is running! (Final Version)',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     status: 'Server is running',
     database: dbStatus,
+    cors: 'enabled',
     endpoints: ['GET /', 'GET /api/health', 'POST /api/auth/login', 'POST /api/auth/register', 'GET /api/users']
   });
 });
@@ -213,7 +216,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Get all users (for admin)
+// Get all users
 app.get('/api/users', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -293,12 +296,13 @@ const startServer = async () => {
     }
     
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Real Users Server running on port ${PORT}`);
+      console.log(`🚀 Final Server running on port ${PORT}`);
       console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
       console.log(`🔗 Root endpoint: http://localhost:${PORT}/`);
       console.log(`🔗 Users: http://localhost:${PORT}/api/users`);
       console.log(`✅ Database: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'}`);
+      console.log(`✅ CORS: Enabled for all origins`);
     });
   } catch (error) {
     console.error('❌ Server startup error:', error);
