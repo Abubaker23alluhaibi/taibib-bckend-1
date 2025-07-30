@@ -215,17 +215,40 @@ app.get('/api/doctors', async (req, res) => {
   try {
     console.log('🔍 جلب الأطباء...');
     
-    // جلب جميع الأطباء النشطين
-    const doctors = await User.find({ 
-      user_type: 'doctor', 
-      active: true,
-      isActive: true 
+    // جلب جميع الأطباء (بدون فلترة إضافية)
+    const allDoctors = await User.find({ 
+      user_type: 'doctor'
     }).select('-password'); // استبعاد كلمة المرور
     
-    console.log(`✅ تم جلب ${doctors.length} طبيب`);
-    console.log('🔍 الأطباء:', doctors.map(d => ({ name: d.name, email: d.email, specialty: d.specialty })));
+    console.log(`📊 إجمالي الأطباء: ${allDoctors.length}`);
     
-    res.json(doctors);
+    // فلترة الأطباء النشطين (مع مرونة في الحقول)
+    const activeDoctors = allDoctors.filter(doctor => {
+      // إذا كان الطبيب معطل صراحةً
+      if (doctor.disabled === true) return false;
+      
+      // إذا كان الطبيب غير نشط صراحةً
+      if (doctor.active === false) return false;
+      if (doctor.isActive === false) return false;
+      
+      // إذا كان الطبيب محذوف
+      if (doctor.deleted === true) return false;
+      
+      // في جميع الحالات الأخرى، اعتباره نشط
+      return true;
+    });
+    
+    console.log(`✅ الأطباء النشطين: ${activeDoctors.length}`);
+    console.log('🔍 الأطباء:', activeDoctors.map(d => ({ 
+      name: d.name, 
+      email: d.email, 
+      specialty: d.specialty,
+      active: d.active,
+      isActive: d.isActive,
+      disabled: d.disabled
+    })));
+    
+    res.json(activeDoctors);
   } catch (error) {
     console.error('❌ Get doctors error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -253,6 +276,46 @@ app.get('/api/check-doctors', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Check doctors error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Check all users endpoint - فحص جميع المستخدمين
+app.get('/api/check-users', async (req, res) => {
+  try {
+    console.log('🔍 فحص جميع المستخدمين...');
+    
+    const allUsers = await User.find({}).select('name email user_type active isActive specialty phone createdAt');
+    
+    // تجميع المستخدمين حسب النوع
+    const regularUsers = allUsers.filter(u => u.user_type === 'user');
+    const doctors = allUsers.filter(u => u.user_type === 'doctor');
+    const admins = allUsers.filter(u => u.user_type === 'admin');
+    
+    // تجميع الأطباء حسب الحالة
+    const activeDoctors = doctors.filter(d => d.active && d.isActive);
+    const inactiveDoctors = doctors.filter(d => !d.active || !d.isActive);
+    
+    console.log(`📊 إجمالي المستخدمين: ${allUsers.length}`);
+    console.log(`👤 المستخدمين العاديين: ${regularUsers.length}`);
+    console.log(`👨‍⚕️ إجمالي الأطباء: ${doctors.length}`);
+    console.log(`✅ الأطباء النشطين: ${activeDoctors.length}`);
+    console.log(`❌ الأطباء غير النشطين: ${inactiveDoctors.length}`);
+    console.log(`👑 الأدمن: ${admins.length}`);
+    
+    res.json({
+      totalUsers: allUsers.length,
+      regularUsers: regularUsers.length,
+      totalDoctors: doctors.length,
+      activeDoctors: activeDoctors.length,
+      inactiveDoctors: inactiveDoctors.length,
+      admins: admins.length,
+      allUsers: allUsers,
+      doctors: doctors,
+      activeDoctors: activeDoctors
+    });
+  } catch (error) {
+    console.error('❌ Check users error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
