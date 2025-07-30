@@ -4,7 +4,7 @@
   "description": "Backend API for Tabib IQ medical consultation platform",
   "main": "server.js",
   "scripts": {
-    "start": "node server-real-users.js",
+    "start": "node server-test-users.js",
     "start:full": "node server.js",
     "start:minimal": "node server-minimal.js",
     "start:test": "node server-test.js",
@@ -16,6 +16,7 @@
     "start:ultra-minimal": "node server-ultra-minimal.js",
     "start:real-db": "node server-real-db.js",
     "start:smart": "node server-smart.js",
+    "start:real-users": "node server-real-users.js",
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
