@@ -1,0 +1,17 @@
+{
+  "name": "tabib-iq-backend-render",
+  "version": "1.0.0",
+  "description": "Tabib IQ Backend for Render deployment",
+  "main": "server-http-simple.js",
+  "scripts": {
+    "start": "node server-http-simple.js",
+    "dev": "node server-http-simple.js"
+  },
+  "engines": {
+    "node": "18.x",
+    "npm": "9.x"
+  },
+  "keywords": ["medical", "api", "render"],
+  "author": "Tabib IQ Team",
+  "license": "MIT"
+} 
