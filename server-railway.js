@@ -196,10 +196,46 @@ app.post('/api/auth/register', async (req, res) => {
 // Doctors endpoint
 app.get('/api/doctors', async (req, res) => {
   try {
-    const doctors = await User.find({ user_type: 'doctor', active: true });
+    console.log('🔍 جلب الأطباء...');
+    
+    // جلب جميع الأطباء النشطين
+    const doctors = await User.find({ 
+      user_type: 'doctor', 
+      active: true,
+      isActive: true 
+    }).select('-password'); // استبعاد كلمة المرور
+    
+    console.log(`✅ تم جلب ${doctors.length} طبيب`);
+    console.log('🔍 الأطباء:', doctors.map(d => ({ name: d.name, email: d.email, specialty: d.specialty })));
+    
     res.json(doctors);
   } catch (error) {
     console.error('❌ Get doctors error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Check registered doctors endpoint
+app.get('/api/check-doctors', async (req, res) => {
+  try {
+    console.log('🔍 فحص الأطباء المسجلين...');
+    
+    const allUsers = await User.find({}).select('name email user_type active isActive specialty');
+    const doctors = allUsers.filter(u => u.user_type === 'doctor');
+    const activeDoctors = doctors.filter(d => d.active && d.isActive);
+    
+    console.log(`📊 إجمالي المستخدمين: ${allUsers.length}`);
+    console.log(`👨‍⚕️ إجمالي الأطباء: ${doctors.length}`);
+    console.log(`✅ الأطباء النشطين: ${activeDoctors.length}`);
+    
+    res.json({
+      totalUsers: allUsers.length,
+      totalDoctors: doctors.length,
+      activeDoctors: activeDoctors.length,
+      doctors: activeDoctors
+    });
+  } catch (error) {
+    console.error('❌ Check doctors error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -215,6 +251,46 @@ app.get('/api/notifications', async (req, res) => {
     res.json([]);
   } catch (error) {
     console.error('❌ Get notifications error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Appointments endpoint
+app.get('/api/appointments', async (req, res) => {
+  try {
+    const { userId, doctorId } = req.query;
+    console.log('🔍 جلب المواعيد:', { userId, doctorId });
+    
+    // Return empty appointments for now
+    res.json([]);
+  } catch (error) {
+    console.error('❌ Get appointments error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Create appointment endpoint
+app.post('/api/appointments', async (req, res) => {
+  try {
+    const { userId, doctorId, date, time, notes } = req.body;
+    console.log('🔍 إنشاء موعد:', { userId, doctorId, date, time });
+    
+    // Return success for now
+    res.status(201).json({
+      success: true,
+      message: 'تم إنشاء الموعد بنجاح',
+      appointment: {
+        id: Date.now(),
+        userId,
+        doctorId,
+        date,
+        time,
+        notes,
+        status: 'pending'
+      }
+    });
+  } catch (error) {
+    console.error('❌ Create appointment error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
