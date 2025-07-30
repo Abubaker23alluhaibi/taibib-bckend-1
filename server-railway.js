@@ -224,7 +224,7 @@ app.get('/api/doctors', async (req, res) => {
     // جلب جميع الأطباء مع جميع المعلومات
     const allDoctors = await User.find({ 
       user_type: 'doctor'
-    }).select('name email phone user_type specialty address experience education city workTimes active isActive disabled createdAt'); // تحديد الحقول المطلوبة
+    }).select('name email phone user_type specialty address experience education city workTimes availableDays active isActive disabled createdAt status isVerified isAvailable'); // تحديد الحقول المطلوبة
     
     console.log(`📊 إجمالي الأطباء: ${allDoctors.length}`);
     
@@ -239,6 +239,9 @@ app.get('/api/doctors', async (req, res) => {
       
       // إذا كان الطبيب محذوف
       if (doctor.deleted === true) return false;
+      
+      // للأطباء الحقيقيين، تحقق من الحالة
+      if (doctor.status && doctor.status !== 'approved') return false;
       
       // في جميع الحالات الأخرى، اعتباره نشط
       return true;
