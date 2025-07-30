@@ -15,7 +15,7 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: CORS_ORIGIN
-        value: https://tabib-iq.com,https://www.tabib-iq.com
+        value: https://www.tabib-iq.com,https://tabib-iq.com,https://*.vercel.app,https://*.netlify.app
       - key: MAX_FILE_SIZE
         value: 5242880
       - key: UPLOAD_PATH
