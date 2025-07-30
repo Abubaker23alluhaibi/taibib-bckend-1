@@ -258,12 +258,18 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     console.log('📤 تسجيل مستخدم جديد...');
     console.log('📋 البيانات المستلمة:', req.body);
+    console.log('📋 Content-Type:', req.headers['content-type']);
     
     const { name, email, password, phone, user_type } = req.body;
     
+    console.log('🔍 البيانات المستخرجة:', { name, email, password: !!password, phone, user_type });
+    
     if (!name || !email || !password) {
       console.log('❌ بيانات ناقصة:', { name: !!name, email: !!email, password: !!password });
-      return res.status(400).json({ message: 'Name, email and password are required' });
+      return res.status(400).json({ 
+        message: 'Name, email and password are required',
+        received: { name: !!name, email: !!email, password: !!password, phone: !!phone, user_type }
+      });
     }
     
     // التحقق من اتصال قاعدة البيانات
