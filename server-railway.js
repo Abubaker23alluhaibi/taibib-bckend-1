@@ -11,6 +11,7 @@ app.use(cors({
   origin: [
     'https://tabib-iq.com',
     'https://www.tabib-iq.com',
+    'https://api.tabib-iq.com',
     'http://localhost:3000',
     'https://tabib-iq-frontend.vercel.app',
     'https://tabib-iq-frontend-git-main.vercel.app'
