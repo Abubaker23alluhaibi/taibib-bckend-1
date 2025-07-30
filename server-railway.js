@@ -1256,6 +1256,49 @@ app.put('/api/change-password/:userId', async (req, res) => {
   }
 });
 
+// Get user profile endpoint - جلب بيانات المستخدم
+app.get('/api/user/:userId', async (req, res) => {
+  try {
+    console.log('📤 جلب بيانات المستخدم...');
+    
+    const { userId } = req.params;
+    
+    // التحقق من وجود المستخدم
+    const user = await User.findById(userId).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'المستخدم غير موجود' });
+    }
+    
+    console.log('✅ تم جلب بيانات المستخدم بنجاح:', user._id);
+    
+    res.json({
+      success: true,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        user_type: user.user_type,
+        profileImage: user.profileImage,
+        specialty: user.specialty,
+        address: user.address,
+        experience: user.experience,
+        education: user.education,
+        city: user.city,
+        workTimes: user.workTimes,
+        status: user.status,
+        isVerified: user.isVerified,
+        isAvailable: user.isAvailable,
+        createdAt: user.createdAt
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في جلب بيانات المستخدم:', error);
+    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
+  }
+});
+
 // Update doctor profile endpoint - تحديث بيانات الطبيب
 app.put('/api/doctor/:doctorId', async (req, res) => {
   try {
