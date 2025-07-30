@@ -208,26 +208,40 @@ app.post('/api/auth/login', async (req, res) => {
     const user = await User.findOne({ email });
     
     if (!user) {
+      console.log('❌ المستخدم غير موجود:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
     
-    // Check user type if specified
-    if (loginType && user.user_type !== loginType) {
+    console.log('✅ تم العثور على المستخدم:', {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      user_type: user.user_type,
+      role: user.role
+    });
+    
+    // Check user type if specified (support both user_type and role fields)
+    const userType = user.user_type || user.role;
+    if (loginType && userType !== loginType) {
+      console.log('❌ نوع المستخدم غير صحيح:', { expected: loginType, actual: userType });
       return res.status(401).json({ message: 'Invalid user type' });
     }
     
     const isPasswordValid = await bcrypt.compare(password, user.password);
     
     if (!isPasswordValid) {
+      console.log('❌ كلمة المرور غير صحيحة للمستخدم:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+    
+    console.log('✅ كلمة المرور صحيحة للمستخدم:', email);
     
     // Generate JWT token
     const token = jwt.sign(
       { 
         userId: user._id, 
         email: user.email, 
-        user_type: user.user_type 
+        user_type: userType 
       },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
@@ -240,7 +254,7 @@ app.post('/api/auth/login', async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
-        user_type: user.user_type,
+        user_type: userType,
         phone: user.phone,
         specialty: user.specialty,
         profileImage: user.profileImage
