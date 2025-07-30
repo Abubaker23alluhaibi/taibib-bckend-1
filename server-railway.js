@@ -1273,6 +1273,99 @@ app.put('/api/user/:userId', async (req, res) => {
   }
 });
 
+// Create admin endpoint - إنشاء أدمن جديد
+app.post('/api/admin/create', async (req, res) => {
+  try {
+    console.log('📤 إنشاء أدمن جديد...');
+    
+    const { name, email, password } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'الاسم والبريد الإلكتروني وكلمة المرور مطلوبة' });
+    }
+    
+    // التحقق من وجود المستخدم
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: 'البريد الإلكتروني مسجل مسبقاً' });
+    }
+    
+    // تشفير كلمة المرور
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // إنشاء الأدمن الجديد
+    const newAdmin = new User({
+      name,
+      email,
+      password: hashedPassword,
+      user_type: 'admin',
+      role: 'admin',
+      active: true,
+      isVerified: true,
+      isAvailable: true
+    });
+    
+    await newAdmin.save();
+    
+    console.log('✅ تم إنشاء الأدمن بنجاح:', newAdmin._id);
+    
+    res.status(201).json({
+      success: true,
+      message: 'تم إنشاء الأدمن بنجاح',
+      admin: {
+        _id: newAdmin._id,
+        name: newAdmin.name,
+        email: newAdmin.email,
+        user_type: newAdmin.user_type
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في إنشاء الأدمن:', error);
+    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
+  }
+});
+
+// Update admin password endpoint - تحديث كلمة مرور الأدمن
+app.put('/api/admin/update-password', async (req, res) => {
+  try {
+    console.log('📤 تحديث كلمة مرور الأدمن...');
+    
+    const { email, newPassword } = req.body;
+    
+    if (!email || !newPassword) {
+      return res.status(400).json({ error: 'البريد الإلكتروني وكلمة المرور الجديدة مطلوبة' });
+    }
+    
+    // البحث عن الأدمن
+    const admin = await User.findOne({ 
+      email,
+      $or: [{ user_type: 'admin' }, { role: 'admin' }]
+    });
+    
+    if (!admin) {
+      return res.status(404).json({ error: 'الأدمن غير موجود' });
+    }
+    
+    // تشفير كلمة المرور الجديدة
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    // تحديث كلمة المرور
+    await User.findByIdAndUpdate(admin._id, { password: hashedPassword });
+    
+    console.log('✅ تم تحديث كلمة مرور الأدمن بنجاح:', admin._id);
+    
+    res.json({
+      success: true,
+      message: 'تم تحديث كلمة المرور بنجاح'
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في تحديث كلمة مرور الأدمن:', error);
+    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
+  }
+});
+
 // Change password endpoint - تغيير كلمة المرور
 app.put('/api/change-password/:userId', async (req, res) => {
   try {
