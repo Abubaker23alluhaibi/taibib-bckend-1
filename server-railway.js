@@ -2,9 +2,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const multer = require('multer');
-const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -57,34 +54,6 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Multer configuration for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ 
-  storage: storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
-  },
-  fileFilter: function (req, file, cb) {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed!'), false);
-    }
-  }
-});
-
 // MongoDB Connection
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq?retryWrites=true&w=majority&appName=Cluster0';
 
@@ -99,24 +68,6 @@ const connectDB = async () => {
   }
 };
 
-// JWT Middleware
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Access token required' });
-  }
-
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
-    if (err) {
-      return res.status(403).json({ message: 'Invalid or expired token' });
-    }
-    req.user = user;
-    next();
-  });
-};
-
 // User Schema
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -129,7 +80,6 @@ const userSchema = new mongoose.Schema({
   experience: { type: String },
   education: { type: String },
   city: { type: String },
-  profileImage: { type: String },
   workTimes: [{
     day: String,
     from: String,
@@ -137,13 +87,22 @@ const userSchema = new mongoose.Schema({
   }],
   isActive: { type: Boolean, default: true },
   active: { type: Boolean, default: true },
-  status: { type: String, default: 'approved' },
-  isVerified: { type: Boolean, default: true },
-  isAvailable: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 }, { strict: false });
 
 const User = mongoose.model('User', userSchema);
+
+// Admin Schema - منفصل للأدمن
+const adminSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  role: { type: String, default: 'admin' },
+  active: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
+}, { strict: false });
+
+const Admin = mongoose.model('Admin', adminSchema);
 
 // Appointment Schema
 const appointmentSchema = new mongoose.Schema({
@@ -152,24 +111,15 @@ const appointmentSchema = new mongoose.Schema({
   date: { type: Date, required: true },
   time: { type: String, required: true },
   notes: { type: String },
-  status: { type: String, enum: ['pending', 'confirmed', 'cancelled', 'completed'], default: 'pending' },
+  status: { 
+    type: String, 
+    enum: ['pending', 'confirmed', 'cancelled', 'completed'], 
+    default: 'pending' 
+  },
   createdAt: { type: Date, default: Date.now }
 });
 
 const Appointment = mongoose.model('Appointment', appointmentSchema);
-
-// Notification Schema
-const notificationSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  title: { type: String, required: true },
-  message: { type: String, required: true },
-  type: { type: String, enum: ['appointment', 'system', 'reminder'], default: 'system' },
-  isRead: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
-});
-
-const Notification = mongoose.model('Notification', notificationSchema);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -180,8 +130,43 @@ app.get('/api/health', (req, res) => {
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
     database: dbStatus,
-    cors: 'enabled'
+    cors: 'enabled',
+    models: {
+      user: User ? 'initialized' : 'not initialized',
+      admin: Admin ? 'initialized' : 'not initialized'
+    }
   });
+});
+
+// Test admin endpoint
+app.get('/api/test-admin', async (req, res) => {
+  try {
+    const admin = await Admin.findOne({ email: 'adMinaBuBaKeRAK@tabibIQ.trIQ' });
+    if (admin) {
+      res.json({
+        success: true,
+        message: 'الأدمن موجود في قاعدة البيانات',
+        admin: {
+          _id: admin._id,
+          name: admin.name,
+          email: admin.email,
+          role: admin.role,
+          active: admin.active
+        }
+      });
+    } else {
+      res.json({
+        success: false,
+        message: 'الأدمن غير موجود في قاعدة البيانات'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في الخادم',
+      error: error.message
+    });
+  }
 });
 
 // Root endpoint
@@ -205,23 +190,33 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
     
-    const user = await User.findOne({ email });
+    let user = null;
+    let userType = '';
+    
+    // البحث في الأدمن أولاً إذا كان loginType = admin
+    if (loginType === 'admin') {
+      user = await Admin.findOne({ email });
+      if (user) {
+        userType = 'admin';
+        console.log('✅ تم العثور على الأدمن:', user.email);
+      }
+    }
+    
+    // إذا لم يتم العثور على الأدمن، ابحث في المستخدمين العاديين
+    if (!user) {
+      user = await User.findOne({ email });
+      if (user) {
+        userType = user.user_type || user.role;
+        console.log('✅ تم العثور على المستخدم:', user.email, 'نوع:', userType);
+      }
+    }
     
     if (!user) {
       console.log('❌ المستخدم غير موجود:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
     
-    console.log('✅ تم العثور على المستخدم:', {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      user_type: user.user_type,
-      role: user.role
-    });
-    
-    // Check user type if specified (support both user_type and role fields)
-    const userType = user.user_type || user.role;
+    // التحقق من نوع المستخدم إذا تم تحديده
     if (loginType && userType !== loginType) {
       console.log('❌ نوع المستخدم غير صحيح:', { expected: loginType, actual: userType });
       return res.status(401).json({ message: 'Invalid user type' });
@@ -270,31 +265,14 @@ app.post('/api/auth/login', async (req, res) => {
 // Register endpoint
 app.post('/api/auth/register', async (req, res) => {
   try {
-    console.log('📤 تسجيل مستخدم جديد...');
-    console.log('📋 البيانات المستلمة:', req.body);
-    console.log('📋 Content-Type:', req.headers['content-type']);
-    
     const { name, email, password, phone, user_type } = req.body;
     
-    console.log('🔍 البيانات المستخرجة:', { name, email, password: !!password, phone, user_type });
-    
     if (!name || !email || !password) {
-      console.log('❌ بيانات ناقصة:', { name: !!name, email: !!email, password: !!password });
-      return res.status(400).json({ 
-        message: 'Name, email and password are required',
-        received: { name: !!name, email: !!email, password: !!password, phone: !!phone, user_type }
-      });
-    }
-    
-    // التحقق من اتصال قاعدة البيانات
-    if (mongoose.connection.readyState !== 1) {
-      console.error('❌ قاعدة البيانات غير متصلة');
-      return res.status(500).json({ message: 'Database connection error' });
+      return res.status(400).json({ message: 'Name, email and password are required' });
     }
     
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      console.log('❌ المستخدم موجود مسبقاً:', email);
       return res.status(400).json({ message: 'User already exists' });
     }
     
@@ -309,9 +287,7 @@ app.post('/api/auth/register', async (req, res) => {
       user_type: user_type || 'user'
     });
     
-    console.log('💾 حفظ المستخدم في قاعدة البيانات...');
     await user.save();
-    console.log('✅ تم حفظ المستخدم بنجاح:', user._id);
     
     res.status(201).json({
       success: true,
@@ -326,7 +302,7 @@ app.post('/api/auth/register', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Register error:', error);
-    res.status(500).json({ message: 'Server error: ' + error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -375,83 +351,6 @@ app.get('/api/doctors', async (req, res) => {
   } catch (error) {
     console.error('❌ Get doctors error:', error);
     res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Check all users endpoint - فحص جميع المستخدمين
-app.get('/api/check-users', async (req, res) => {
-  try {
-    console.log('🔍 فحص جميع المستخدمين...');
-    
-    const allUsers = await User.find({}).select('name email phone user_type createdAt status');
-    const users = allUsers.filter(user => user.user_type === 'user');
-    const doctors = allUsers.filter(user => user.user_type === 'doctor');
-    const admins = allUsers.filter(user => user.user_type === 'admin');
-    
-    console.log(`📊 إجمالي المستخدمين: ${allUsers.length}`);
-    console.log(`👥 المستخدمين العاديين: ${users.length}`);
-    console.log(`👨‍⚕️ الأطباء: ${doctors.length}`);
-    console.log(`👨‍💼 المديرين: ${admins.length}`);
-    
-    res.json({
-      total: allUsers.length,
-      users: users.length,
-      doctors: doctors.length,
-      admins: admins.length,
-      allUsers: allUsers,
-      users: users,
-      doctors: doctors,
-      admins: admins
-    });
-  } catch (error) {
-    console.error('❌ Check users error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Admin dashboard data endpoint - بيانات لوحة تحكم الأدمن
-app.get('/api/admin/dashboard', async (req, res) => {
-  try {
-    console.log('📤 جلب بيانات لوحة تحكم الأدمن...');
-    
-    // جلب جميع المستخدمين
-    const allUsers = await User.find({}).select('-password');
-    const users = allUsers.filter(user => user.user_type === 'user');
-    const doctors = allUsers.filter(user => user.user_type === 'doctor');
-    const admins = allUsers.filter(user => user.user_type === 'admin');
-    
-    // جلب جميع المواعيد
-    const appointments = await Appointment.find({})
-      .populate('userId', 'name email phone')
-      .populate('doctorId', 'name email specialty')
-      .sort({ createdAt: -1 });
-    
-    // إحصائيات
-    const stats = {
-      totalUsers: users.length,
-      totalDoctors: doctors.length,
-      totalAdmins: admins.length,
-      totalAppointments: appointments.length,
-      pendingDoctors: doctors.filter(d => d.status === 'pending').length,
-      approvedDoctors: doctors.filter(d => d.status === 'approved').length,
-      rejectedDoctors: doctors.filter(d => d.status === 'rejected').length,
-      activeDoctors: doctors.filter(d => d.isAvailable && d.status === 'approved').length
-    };
-    
-    console.log('✅ تم جلب بيانات لوحة التحكم بنجاح');
-    
-    res.json({
-      success: true,
-      stats,
-      users,
-      doctors,
-      admins,
-      appointments
-    });
-    
-  } catch (error) {
-    console.error('❌ خطأ في جلب بيانات لوحة التحكم:', error);
-    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
   }
 });
 
@@ -517,103 +416,6 @@ app.get('/api/check-users', async (req, res) => {
   } catch (error) {
     console.error('❌ Check users error:', error);
     res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Doctor registration endpoint - تسجيل الأطباء
-app.post('/api/doctors', upload.fields([
-  { name: 'image', maxCount: 1 },
-  { name: 'idFront', maxCount: 1 },
-  { name: 'idBack', maxCount: 1 },
-  { name: 'syndicateFront', maxCount: 1 },
-  { name: 'syndicateBack', maxCount: 1 }
-]), async (req, res) => {
-  try {
-    console.log('📤 تسجيل طبيب جديد...');
-    console.log('📋 البيانات المستلمة:', req.body);
-    console.log('📁 الملفات المرفوعة:', req.files);
-    
-    const {
-      name, email, phone, password, specialty, province, area, 
-      clinicLocation, about, experienceYears, workTimes
-    } = req.body;
-
-    // التحقق من البيانات المطلوبة
-    if (!name || !email || !password) {
-      console.log('❌ بيانات ناقصة:', { name: !!name, email: !!email, password: !!password });
-      return res.status(400).json({ 
-        error: 'الاسم والبريد الإلكتروني وكلمة المرور مطلوبة' 
-      });
-    }
-
-    // التحقق من اتصال قاعدة البيانات
-    if (mongoose.connection.readyState !== 1) {
-      console.error('❌ قاعدة البيانات غير متصلة');
-      return res.status(500).json({ error: 'خطأ في اتصال قاعدة البيانات' });
-    }
-
-    // التحقق من وجود المستخدم
-    const existingUser = await User.findOne({ 
-      $or: [{ email }, { phone }] 
-    });
-    
-    if (existingUser) {
-      console.log('❌ المستخدم موجود مسبقاً:', { email, phone });
-      return res.status(400).json({ 
-        error: 'البريد الإلكتروني أو رقم الهاتف مسجل مسبقاً' 
-      });
-    }
-
-    // تشفير كلمة المرور
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // معالجة الصور المرفوعة
-    const imagePath = req.files?.image ? `/uploads/${req.files.image[0].filename}` : null;
-    const idFrontPath = req.files?.idFront ? `/uploads/${req.files.idFront[0].filename}` : null;
-    const idBackPath = req.files?.idBack ? `/uploads/${req.files.idBack[0].filename}` : null;
-    const syndicateFrontPath = req.files?.syndicateFront ? `/uploads/${req.files.syndicateFront[0].filename}` : null;
-    const syndicateBackPath = req.files?.syndicateBack ? `/uploads/${req.files.syndicateBack[0].filename}` : null;
-
-    console.log('📁 مسارات الملفات:', {
-      imagePath, idFrontPath, idBackPath, syndicateFrontPath, syndicateBackPath
-    });
-
-    // إنشاء الطبيب الجديد
-    const newDoctor = new User({
-      name,
-      email,
-      phone,
-      password: hashedPassword,
-      user_type: 'doctor',
-      specialty,
-      province,
-      area,
-      clinicLocation,
-      about,
-      experienceYears,
-      workTimes: workTimes ? JSON.parse(workTimes) : [],
-      profileImage: imagePath,
-      idFront: idFrontPath,
-      idBack: idBackPath,
-      syndicateFront: syndicateFrontPath,
-      syndicateBack: syndicateBackPath,
-      status: 'pending', // في انتظار الموافقة
-      isVerified: false,
-      isAvailable: false
-    });
-
-    console.log('💾 حفظ الطبيب في قاعدة البيانات...');
-    await newDoctor.save();
-    
-    console.log('✅ تم تسجيل الطبيب بنجاح:', newDoctor._id);
-    res.status(201).json({ 
-      message: 'تم تسجيل الطبيب بنجاح، في انتظار الموافقة',
-      doctorId: newDoctor._id 
-    });
-    
-  } catch (error) {
-    console.error('❌ خطأ في تسجيل الطبيب:', error);
-    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
   }
 });
 
@@ -842,33 +644,12 @@ app.post('/api/appointments', async (req, res) => {
     
     await appointment.save();
     
-    // إنشاء إشعار للطبيب
-    const doctorNotification = new Notification({
-      userId: doctorId,
-      doctorId: doctorId,
-      title: 'موعد جديد',
-      message: `لديك موعد جديد مع ${user.name} في ${new Date(date).toLocaleDateString('ar-EG')} الساعة ${time}`,
-      type: 'appointment'
-    });
-    await doctorNotification.save();
-    
-    // إنشاء إشعار للمريض
-    const userNotification = new Notification({
-      userId: userId,
-      doctorId: doctorId,
-      title: 'تم حجز الموعد',
-      message: `تم حجز موعدك مع ${doctor.name} في ${new Date(date).toLocaleDateString('ar-EG')} الساعة ${time}`,
-      type: 'appointment'
-    });
-    await userNotification.save();
-    
     // جلب الموعد مع بيانات المستخدم والطبيب
     const savedAppointment = await Appointment.findById(appointment._id)
       .populate('userId', 'name email phone')
       .populate('doctorId', 'name email specialty');
     
     console.log('✅ تم إنشاء الموعد بنجاح:', savedAppointment._id);
-    console.log('📧 تم إرسال الإشعارات للطبيب والمريض');
     
     res.status(201).json({
       success: true,
@@ -1085,546 +866,6 @@ app.get('/api/doctors/:doctorId', async (req, res) => {
   }
 });
 
-// Upload profile image endpoint
-app.post('/api/upload-profile-image', upload.single('profileImage'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No image file provided' });
-    }
-
-    const userId = req.body.userId;
-    if (!userId) {
-      return res.status(400).json({ message: 'User ID is required' });
-    }
-
-    const imagePath = `/uploads/${req.file.filename}`;
-    
-    // Update user profile with image path
-    await User.findByIdAndUpdate(userId, { profileImage: imagePath });
-    
-    res.json({
-      success: true,
-      imagePath: imagePath,
-      message: 'Profile image uploaded successfully'
-    });
-    
-  } catch (error) {
-    console.error('❌ Upload profile image error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Update doctor work times endpoint
-app.put('/api/doctors/:doctorId/work-times', async (req, res) => {
-  try {
-    const { doctorId } = req.params;
-    const { workTimes } = req.body;
-    
-    console.log('🔍 تحديث أوقات عمل الطبيب:', doctorId);
-    console.log('📅 أوقات العمل الجديدة:', workTimes);
-    
-    const doctor = await User.findByIdAndUpdate(
-      doctorId,
-      { workTimes: workTimes },
-      { new: true }
-    ).select('-password');
-    
-    if (!doctor) {
-      return res.status(404).json({ message: 'الطبيب غير موجود' });
-    }
-    
-    res.json({
-      success: true,
-      doctor: doctor,
-      message: 'تم تحديث أوقات العمل بنجاح'
-    });
-    
-  } catch (error) {
-    console.error('❌ Update work times error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Create notification endpoint
-app.post('/api/notifications', async (req, res) => {
-  try {
-    const { userId, doctorId, title, message, type } = req.body;
-    
-    const notification = new Notification({
-      userId,
-      doctorId,
-      title,
-      message,
-      type: type || 'system'
-    });
-    
-    await notification.save();
-    
-    res.json({
-      success: true,
-      notification: notification,
-      message: 'تم إنشاء الإشعار بنجاح'
-    });
-    
-  } catch (error) {
-    console.error('❌ Create notification error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Get notifications endpoint
-app.get('/api/notifications', async (req, res) => {
-  try {
-    const { userId, doctorId } = req.query;
-    
-    let query = {};
-    if (userId) query.userId = userId;
-    if (doctorId) query.doctorId = doctorId;
-    
-    const notifications = await Notification.find(query)
-      .populate('userId', 'name email')
-      .populate('doctorId', 'name specialty')
-      .sort({ createdAt: -1 });
-    
-    res.json({
-      success: true,
-      notifications: notifications
-    });
-    
-  } catch (error) {
-    console.error('❌ Get notifications error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Mark notification as read endpoint
-app.put('/api/notifications/:notificationId/read', async (req, res) => {
-  try {
-    const { notificationId } = req.params;
-    
-    await Notification.findByIdAndUpdate(notificationId, { isRead: true });
-    
-    res.json({
-      success: true,
-      message: 'تم تحديث حالة الإشعار'
-    });
-    
-  } catch (error) {
-    console.error('❌ Mark notification read error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Update user profile endpoint - تحديث بيانات المستخدم
-app.put('/api/user/:userId', async (req, res) => {
-  try {
-    console.log('📤 تحديث بيانات المستخدم...');
-    console.log('📋 البيانات المستلمة:', req.body);
-    
-    const { userId } = req.params;
-    const updates = req.body;
-    
-    // التحقق من وجود المستخدم
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'المستخدم غير موجود' });
-    }
-    
-    // التحقق من نوع المستخدم
-    if (user.user_type !== 'user') {
-      return res.status(403).json({ error: 'غير مصرح بتحديث هذا النوع من المستخدمين' });
-    }
-    
-    // تحديث البيانات المسموح بها فقط
-    const allowedUpdates = ['name', 'email', 'phone', 'profileImage'];
-    const filteredUpdates = {};
-    
-    allowedUpdates.forEach(field => {
-      if (updates[field] !== undefined) {
-        filteredUpdates[field] = updates[field];
-      }
-    });
-    
-    console.log('🔍 البيانات المحدثة:', filteredUpdates);
-    
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      filteredUpdates,
-      { new: true, runValidators: true }
-    );
-    
-    console.log('✅ تم تحديث المستخدم بنجاح:', updatedUser._id);
-    
-    res.json({
-      success: true,
-      user: {
-        _id: updatedUser._id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        phone: updatedUser.phone,
-        user_type: updatedUser.user_type,
-        profileImage: updatedUser.profileImage
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ خطأ في تحديث المستخدم:', error);
-    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
-  }
-});
-
-// Create admin endpoint - إنشاء أدمن جديد
-app.post('/api/admin/create', async (req, res) => {
-  try {
-    console.log('📤 إنشاء أدمن جديد...');
-    
-    const { name, email, password } = req.body;
-    
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: 'الاسم والبريد الإلكتروني وكلمة المرور مطلوبة' });
-    }
-    
-    // التحقق من وجود المستخدم
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ error: 'البريد الإلكتروني مسجل مسبقاً' });
-    }
-    
-    // تشفير كلمة المرور
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // إنشاء الأدمن الجديد
-    const newAdmin = new User({
-      name,
-      email,
-      password: hashedPassword,
-      user_type: 'admin',
-      role: 'admin',
-      active: true,
-      isVerified: true,
-      isAvailable: true
-    });
-    
-    await newAdmin.save();
-    
-    console.log('✅ تم إنشاء الأدمن بنجاح:', newAdmin._id);
-    
-    res.status(201).json({
-      success: true,
-      message: 'تم إنشاء الأدمن بنجاح',
-      admin: {
-        _id: newAdmin._id,
-        name: newAdmin.name,
-        email: newAdmin.email,
-        user_type: newAdmin.user_type
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ خطأ في إنشاء الأدمن:', error);
-    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
-  }
-});
-
-// Update admin password endpoint - تحديث كلمة مرور الأدمن
-app.put('/api/admin/update-password', async (req, res) => {
-  try {
-    console.log('📤 تحديث كلمة مرور الأدمن...');
-    
-    const { email, newPassword } = req.body;
-    
-    if (!email || !newPassword) {
-      return res.status(400).json({ error: 'البريد الإلكتروني وكلمة المرور الجديدة مطلوبة' });
-    }
-    
-    // البحث عن الأدمن
-    const admin = await User.findOne({ 
-      email,
-      $or: [{ user_type: 'admin' }, { role: 'admin' }]
-    });
-    
-    if (!admin) {
-      return res.status(404).json({ error: 'الأدمن غير موجود' });
-    }
-    
-    // تشفير كلمة المرور الجديدة
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    
-    // تحديث كلمة المرور
-    await User.findByIdAndUpdate(admin._id, { password: hashedPassword });
-    
-    console.log('✅ تم تحديث كلمة مرور الأدمن بنجاح:', admin._id);
-    
-    res.json({
-      success: true,
-      message: 'تم تحديث كلمة المرور بنجاح'
-    });
-    
-  } catch (error) {
-    console.error('❌ خطأ في تحديث كلمة مرور الأدمن:', error);
-    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
-  }
-});
-
-// Change password endpoint - تغيير كلمة المرور
-app.put('/api/change-password/:userId', async (req, res) => {
-  try {
-    console.log('📤 تغيير كلمة المرور...');
-    
-    const { userId } = req.params;
-    const { currentPassword, newPassword } = req.body;
-    
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'كلمة المرور الحالية والجديدة مطلوبة' });
-    }
-    
-    // التحقق من وجود المستخدم
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'المستخدم غير موجود' });
-    }
-    
-    // التحقق من كلمة المرور الحالية
-    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
-    if (!isCurrentPasswordValid) {
-      return res.status(400).json({ error: 'كلمة المرور الحالية غير صحيحة' });
-    }
-    
-    // تشفير كلمة المرور الجديدة
-    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
-    
-    // تحديث كلمة المرور
-    await User.findByIdAndUpdate(userId, { password: hashedNewPassword });
-    
-    console.log('✅ تم تغيير كلمة المرور بنجاح');
-    
-    res.json({
-      success: true,
-      message: 'تم تغيير كلمة المرور بنجاح'
-    });
-    
-  } catch (error) {
-    console.error('❌ خطأ في تغيير كلمة المرور:', error);
-    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
-  }
-});
-
-// Get user profile endpoint - جلب بيانات المستخدم
-app.get('/api/user/:userId', async (req, res) => {
-  try {
-    console.log('📤 جلب بيانات المستخدم...');
-    
-    const { userId } = req.params;
-    
-    // التحقق من وجود المستخدم
-    const user = await User.findById(userId).select('-password');
-    if (!user) {
-      return res.status(404).json({ error: 'المستخدم غير موجود' });
-    }
-    
-    console.log('✅ تم جلب بيانات المستخدم بنجاح:', user._id);
-    
-    res.json({
-      success: true,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        user_type: user.user_type,
-        profileImage: user.profileImage,
-        specialty: user.specialty,
-        address: user.address,
-        experience: user.experience,
-        education: user.education,
-        city: user.city,
-        workTimes: user.workTimes,
-        status: user.status,
-        isVerified: user.isVerified,
-        isAvailable: user.isAvailable,
-        createdAt: user.createdAt
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ خطأ في جلب بيانات المستخدم:', error);
-    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
-  }
-});
-
-// Approve doctor endpoint - الموافقة على الطبيب
-app.put('/api/doctors/:doctorId/approve', async (req, res) => {
-  try {
-    console.log('📤 الموافقة على الطبيب...');
-    
-    const { doctorId } = req.params;
-    
-    // التحقق من وجود الطبيب
-    const doctor = await User.findById(doctorId);
-    if (!doctor) {
-      return res.status(404).json({ error: 'الطبيب غير موجود' });
-    }
-    
-    // التحقق من نوع المستخدم
-    if (doctor.user_type !== 'doctor') {
-      return res.status(403).json({ error: 'غير مصرح بتحديث هذا النوع من المستخدمين' });
-    }
-    
-    // تحديث حالة الطبيب
-    const updatedDoctor = await User.findByIdAndUpdate(
-      doctorId,
-      { 
-        status: 'approved',
-        isVerified: true,
-        isAvailable: true
-      },
-      { new: true, runValidators: true }
-    );
-    
-    console.log('✅ تم الموافقة على الطبيب بنجاح:', updatedDoctor._id);
-    
-    res.json({
-      success: true,
-      message: 'تم الموافقة على الطبيب بنجاح',
-      doctor: {
-        _id: updatedDoctor._id,
-        name: updatedDoctor.name,
-        email: updatedDoctor.email,
-        status: updatedDoctor.status,
-        isVerified: updatedDoctor.isVerified,
-        isAvailable: updatedDoctor.isAvailable
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ خطأ في الموافقة على الطبيب:', error);
-    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
-  }
-});
-
-// Reject doctor endpoint - رفض الطبيب
-app.put('/api/doctors/:doctorId/reject', async (req, res) => {
-  try {
-    console.log('📤 رفض الطبيب...');
-    
-    const { doctorId } = req.params;
-    
-    // التحقق من وجود الطبيب
-    const doctor = await User.findById(doctorId);
-    if (!doctor) {
-      return res.status(404).json({ error: 'الطبيب غير موجود' });
-    }
-    
-    // التحقق من نوع المستخدم
-    if (doctor.user_type !== 'doctor') {
-      return res.status(403).json({ error: 'غير مصرح بتحديث هذا النوع من المستخدمين' });
-    }
-    
-    // تحديث حالة الطبيب
-    const updatedDoctor = await User.findByIdAndUpdate(
-      doctorId,
-      { 
-        status: 'rejected',
-        isVerified: false,
-        isAvailable: false
-      },
-      { new: true, runValidators: true }
-    );
-    
-    console.log('✅ تم رفض الطبيب بنجاح:', updatedDoctor._id);
-    
-    res.json({
-      success: true,
-      message: 'تم رفض الطبيب بنجاح',
-      doctor: {
-        _id: updatedDoctor._id,
-        name: updatedDoctor.name,
-        email: updatedDoctor.email,
-        status: updatedDoctor.status,
-        isVerified: updatedDoctor.isVerified,
-        isAvailable: updatedDoctor.isAvailable
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ خطأ في رفض الطبيب:', error);
-    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
-  }
-});
-
-// Update doctor profile endpoint - تحديث بيانات الطبيب
-app.put('/api/doctor/:doctorId', async (req, res) => {
-  try {
-    console.log('📤 تحديث بيانات الطبيب...');
-    console.log('📋 البيانات المستلمة:', req.body);
-    
-    const { doctorId } = req.params;
-    const updates = req.body;
-    
-    // التحقق من وجود الطبيب
-    const doctor = await User.findById(doctorId);
-    if (!doctor) {
-      return res.status(404).json({ error: 'الطبيب غير موجود' });
-    }
-    
-    // التحقق من نوع المستخدم
-    if (doctor.user_type !== 'doctor') {
-      return res.status(403).json({ error: 'غير مصرح بتحديث هذا النوع من المستخدمين' });
-    }
-    
-    // تحديث البيانات المسموح بها فقط
-    const allowedUpdates = ['name', 'email', 'phone', 'profileImage', 'specialty', 'address', 'experience', 'education', 'city', 'workTimes'];
-    const filteredUpdates = {};
-    
-    allowedUpdates.forEach(field => {
-      if (updates[field] !== undefined) {
-        filteredUpdates[field] = updates[field];
-      }
-    });
-    
-    console.log('🔍 البيانات المحدثة:', filteredUpdates);
-    
-    const updatedDoctor = await User.findByIdAndUpdate(
-      doctorId,
-      filteredUpdates,
-      { new: true, runValidators: true }
-    );
-    
-    console.log('✅ تم تحديث الطبيب بنجاح:', updatedDoctor._id);
-    
-    res.json({
-      success: true,
-      doctor: {
-        _id: updatedDoctor._id,
-        name: updatedDoctor.name,
-        email: updatedDoctor.email,
-        phone: updatedDoctor.phone,
-        user_type: updatedDoctor.user_type,
-        specialty: updatedDoctor.specialty,
-        address: updatedDoctor.address,
-        experience: updatedDoctor.experience,
-        education: updatedDoctor.education,
-        city: updatedDoctor.city,
-        workTimes: updatedDoctor.workTimes,
-        profileImage: updatedDoctor.profileImage
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ خطأ في تحديث الطبيب:', error);
-    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
-  }
-});
-
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'Tabib IQ Backend is running',
-    timestamp: new Date().toISOString()
-  });
-});
-
 // Start server
 const PORT = process.env.PORT || 5000;
 
@@ -1636,9 +877,24 @@ const startServer = async () => {
   
   const dbConnected = await connectDB();
   
+  if (dbConnected) {
+    // التحقق من وجود الأدمن في قاعدة البيانات
+    try {
+      const adminExists = await Admin.findOne({ email: 'adMinaBuBaKeRAK@tabibIQ.trIQ' });
+      if (adminExists) {
+        console.log('✅ الأدمن الحقيقي موجود في قاعدة البيانات');
+      } else {
+        console.log('⚠️ الأدمن غير موجود في قاعدة البيانات');
+      }
+    } catch (error) {
+      console.log('⚠️ خطأ في التحقق من الأدمن:', error.message);
+    }
+  }
+  
   app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
     console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
+    console.log(`🌐 Test admin: http://localhost:${PORT}/api/test-admin`);
     console.log(`📊 Database: ${dbConnected ? 'Connected' : 'Disconnected'}`);
   });
 };
