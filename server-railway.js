@@ -192,6 +192,32 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
+// Doctors endpoint
+app.get('/api/doctors', async (req, res) => {
+  try {
+    const doctors = await User.find({ user_type: 'doctor', active: true });
+    res.json(doctors);
+  } catch (error) {
+    console.error('❌ Get doctors error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Notifications endpoint
+app.get('/api/notifications', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+    // Return empty notifications for now
+    res.json([]);
+  } catch (error) {
+    console.error('❌ Get notifications error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Start server
 const PORT = process.env.PORT || 5000;
 
