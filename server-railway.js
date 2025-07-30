@@ -395,6 +395,52 @@ app.get('/api/check-users', async (req, res) => {
   }
 });
 
+// Admin dashboard data endpoint - بيانات لوحة تحكم الأدمن
+app.get('/api/admin/dashboard', async (req, res) => {
+  try {
+    console.log('📤 جلب بيانات لوحة تحكم الأدمن...');
+    
+    // جلب جميع المستخدمين
+    const allUsers = await User.find({}).select('-password');
+    const users = allUsers.filter(user => user.user_type === 'user');
+    const doctors = allUsers.filter(user => user.user_type === 'doctor');
+    const admins = allUsers.filter(user => user.user_type === 'admin');
+    
+    // جلب جميع المواعيد
+    const appointments = await Appointment.find({})
+      .populate('userId', 'name email phone')
+      .populate('doctorId', 'name email specialty')
+      .sort({ createdAt: -1 });
+    
+    // إحصائيات
+    const stats = {
+      totalUsers: users.length,
+      totalDoctors: doctors.length,
+      totalAdmins: admins.length,
+      totalAppointments: appointments.length,
+      pendingDoctors: doctors.filter(d => d.status === 'pending').length,
+      approvedDoctors: doctors.filter(d => d.status === 'approved').length,
+      rejectedDoctors: doctors.filter(d => d.status === 'rejected').length,
+      activeDoctors: doctors.filter(d => d.isAvailable && d.status === 'approved').length
+    };
+    
+    console.log('✅ تم جلب بيانات لوحة التحكم بنجاح');
+    
+    res.json({
+      success: true,
+      stats,
+      users,
+      doctors,
+      admins,
+      appointments
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في جلب بيانات لوحة التحكم:', error);
+    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
+  }
+});
+
 // Check registered doctors endpoint
 app.get('/api/check-doctors', async (req, res) => {
   try {
@@ -1295,6 +1341,106 @@ app.get('/api/user/:userId', async (req, res) => {
     
   } catch (error) {
     console.error('❌ خطأ في جلب بيانات المستخدم:', error);
+    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
+  }
+});
+
+// Approve doctor endpoint - الموافقة على الطبيب
+app.put('/api/doctors/:doctorId/approve', async (req, res) => {
+  try {
+    console.log('📤 الموافقة على الطبيب...');
+    
+    const { doctorId } = req.params;
+    
+    // التحقق من وجود الطبيب
+    const doctor = await User.findById(doctorId);
+    if (!doctor) {
+      return res.status(404).json({ error: 'الطبيب غير موجود' });
+    }
+    
+    // التحقق من نوع المستخدم
+    if (doctor.user_type !== 'doctor') {
+      return res.status(403).json({ error: 'غير مصرح بتحديث هذا النوع من المستخدمين' });
+    }
+    
+    // تحديث حالة الطبيب
+    const updatedDoctor = await User.findByIdAndUpdate(
+      doctorId,
+      { 
+        status: 'approved',
+        isVerified: true,
+        isAvailable: true
+      },
+      { new: true, runValidators: true }
+    );
+    
+    console.log('✅ تم الموافقة على الطبيب بنجاح:', updatedDoctor._id);
+    
+    res.json({
+      success: true,
+      message: 'تم الموافقة على الطبيب بنجاح',
+      doctor: {
+        _id: updatedDoctor._id,
+        name: updatedDoctor.name,
+        email: updatedDoctor.email,
+        status: updatedDoctor.status,
+        isVerified: updatedDoctor.isVerified,
+        isAvailable: updatedDoctor.isAvailable
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في الموافقة على الطبيب:', error);
+    res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
+  }
+});
+
+// Reject doctor endpoint - رفض الطبيب
+app.put('/api/doctors/:doctorId/reject', async (req, res) => {
+  try {
+    console.log('📤 رفض الطبيب...');
+    
+    const { doctorId } = req.params;
+    
+    // التحقق من وجود الطبيب
+    const doctor = await User.findById(doctorId);
+    if (!doctor) {
+      return res.status(404).json({ error: 'الطبيب غير موجود' });
+    }
+    
+    // التحقق من نوع المستخدم
+    if (doctor.user_type !== 'doctor') {
+      return res.status(403).json({ error: 'غير مصرح بتحديث هذا النوع من المستخدمين' });
+    }
+    
+    // تحديث حالة الطبيب
+    const updatedDoctor = await User.findByIdAndUpdate(
+      doctorId,
+      { 
+        status: 'rejected',
+        isVerified: false,
+        isAvailable: false
+      },
+      { new: true, runValidators: true }
+    );
+    
+    console.log('✅ تم رفض الطبيب بنجاح:', updatedDoctor._id);
+    
+    res.json({
+      success: true,
+      message: 'تم رفض الطبيب بنجاح',
+      doctor: {
+        _id: updatedDoctor._id,
+        name: updatedDoctor.name,
+        email: updatedDoctor.email,
+        status: updatedDoctor.status,
+        isVerified: updatedDoctor.isVerified,
+        isAvailable: updatedDoctor.isAvailable
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في رفض الطبيب:', error);
     res.status(500).json({ error: 'خطأ في الخادم: ' + error.message });
   }
 });
