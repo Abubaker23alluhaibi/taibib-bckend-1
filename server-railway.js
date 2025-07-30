@@ -2,6 +2,9 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -54,6 +57,34 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Multer configuration for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
+});
+
 // MongoDB Connection
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq?retryWrites=true&w=majority&appName=Cluster0';
 
@@ -68,6 +99,24 @@ const connectDB = async () => {
   }
 };
 
+// JWT Middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Access token required' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
+    if (err) {
+      return res.status(403).json({ message: 'Invalid or expired token' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
 // User Schema
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -80,6 +129,7 @@ const userSchema = new mongoose.Schema({
   experience: { type: String },
   education: { type: String },
   city: { type: String },
+  profileImage: { type: String },
   workTimes: [{
     day: String,
     from: String,
@@ -87,6 +137,9 @@ const userSchema = new mongoose.Schema({
   }],
   isActive: { type: Boolean, default: true },
   active: { type: Boolean, default: true },
+  status: { type: String, default: 'approved' },
+  isVerified: { type: Boolean, default: true },
+  isAvailable: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 }, { strict: false });
 
@@ -99,15 +152,24 @@ const appointmentSchema = new mongoose.Schema({
   date: { type: Date, required: true },
   time: { type: String, required: true },
   notes: { type: String },
-  status: { 
-    type: String, 
-    enum: ['pending', 'confirmed', 'cancelled', 'completed'], 
-    default: 'pending' 
-  },
+  status: { type: String, enum: ['pending', 'confirmed', 'cancelled', 'completed'], default: 'pending' },
   createdAt: { type: Date, default: Date.now }
 });
 
 const Appointment = mongoose.model('Appointment', appointmentSchema);
+
+// Notification Schema
+const notificationSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  title: { type: String, required: true },
+  message: { type: String, required: true },
+  type: { type: String, enum: ['appointment', 'system', 'reminder'], default: 'system' },
+  isRead: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Notification = mongoose.model('Notification', notificationSchema);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -149,20 +211,39 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
     
+    // Check user type if specified
+    if (loginType && user.user_type !== loginType) {
+      return res.status(401).json({ message: 'Invalid user type' });
+    }
+    
     const isPasswordValid = await bcrypt.compare(password, user.password);
     
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
     
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        userId: user._id, 
+        email: user.email, 
+        user_type: user.user_type 
+      },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '7d' }
+    );
+    
     res.json({
       success: true,
+      token: token,
       user: {
         _id: user._id,
         name: user.name,
         email: user.email,
         user_type: user.user_type,
-        phone: user.phone
+        phone: user.phone,
+        specialty: user.specialty,
+        profileImage: user.profileImage
       }
     });
     
@@ -554,12 +635,33 @@ app.post('/api/appointments', async (req, res) => {
     
     await appointment.save();
     
+    // إنشاء إشعار للطبيب
+    const doctorNotification = new Notification({
+      userId: doctorId,
+      doctorId: doctorId,
+      title: 'موعد جديد',
+      message: `لديك موعد جديد مع ${user.name} في ${new Date(date).toLocaleDateString('ar-EG')} الساعة ${time}`,
+      type: 'appointment'
+    });
+    await doctorNotification.save();
+    
+    // إنشاء إشعار للمريض
+    const userNotification = new Notification({
+      userId: userId,
+      doctorId: doctorId,
+      title: 'تم حجز الموعد',
+      message: `تم حجز موعدك مع ${doctor.name} في ${new Date(date).toLocaleDateString('ar-EG')} الساعة ${time}`,
+      type: 'appointment'
+    });
+    await userNotification.save();
+    
     // جلب الموعد مع بيانات المستخدم والطبيب
     const savedAppointment = await Appointment.findById(appointment._id)
       .populate('userId', 'name email phone')
       .populate('doctorId', 'name email specialty');
     
     console.log('✅ تم إنشاء الموعد بنجاح:', savedAppointment._id);
+    console.log('📧 تم إرسال الإشعارات للطبيب والمريض');
     
     res.status(201).json({
       success: true,
@@ -774,6 +876,145 @@ app.get('/api/doctors/:doctorId', async (req, res) => {
     console.error('❌ Get doctor details error:', error);
     res.status(500).json({ message: 'Server error' });
   }
+});
+
+// Upload profile image endpoint
+app.post('/api/upload-profile-image', upload.single('profileImage'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image file provided' });
+    }
+
+    const userId = req.body.userId;
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+
+    const imagePath = `/uploads/${req.file.filename}`;
+    
+    // Update user profile with image path
+    await User.findByIdAndUpdate(userId, { profileImage: imagePath });
+    
+    res.json({
+      success: true,
+      imagePath: imagePath,
+      message: 'Profile image uploaded successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Upload profile image error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update doctor work times endpoint
+app.put('/api/doctors/:doctorId/work-times', async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const { workTimes } = req.body;
+    
+    console.log('🔍 تحديث أوقات عمل الطبيب:', doctorId);
+    console.log('📅 أوقات العمل الجديدة:', workTimes);
+    
+    const doctor = await User.findByIdAndUpdate(
+      doctorId,
+      { workTimes: workTimes },
+      { new: true }
+    ).select('-password');
+    
+    if (!doctor) {
+      return res.status(404).json({ message: 'الطبيب غير موجود' });
+    }
+    
+    res.json({
+      success: true,
+      doctor: doctor,
+      message: 'تم تحديث أوقات العمل بنجاح'
+    });
+    
+  } catch (error) {
+    console.error('❌ Update work times error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Create notification endpoint
+app.post('/api/notifications', async (req, res) => {
+  try {
+    const { userId, doctorId, title, message, type } = req.body;
+    
+    const notification = new Notification({
+      userId,
+      doctorId,
+      title,
+      message,
+      type: type || 'system'
+    });
+    
+    await notification.save();
+    
+    res.json({
+      success: true,
+      notification: notification,
+      message: 'تم إنشاء الإشعار بنجاح'
+    });
+    
+  } catch (error) {
+    console.error('❌ Create notification error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get notifications endpoint
+app.get('/api/notifications', async (req, res) => {
+  try {
+    const { userId, doctorId } = req.query;
+    
+    let query = {};
+    if (userId) query.userId = userId;
+    if (doctorId) query.doctorId = doctorId;
+    
+    const notifications = await Notification.find(query)
+      .populate('userId', 'name email')
+      .populate('doctorId', 'name specialty')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      notifications: notifications
+    });
+    
+  } catch (error) {
+    console.error('❌ Get notifications error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Mark notification as read endpoint
+app.put('/api/notifications/:notificationId/read', async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+    
+    await Notification.findByIdAndUpdate(notificationId, { isRead: true });
+    
+    res.json({
+      success: true,
+      message: 'تم تحديث حالة الإشعار'
+    });
+    
+  } catch (error) {
+    console.error('❌ Mark notification read error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Tabib IQ Backend is running',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Start server
