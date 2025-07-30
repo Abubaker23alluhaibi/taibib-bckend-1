@@ -215,10 +215,10 @@ app.get('/api/doctors', async (req, res) => {
   try {
     console.log('🔍 جلب الأطباء...');
     
-    // جلب جميع الأطباء (بدون فلترة إضافية)
+    // جلب جميع الأطباء مع جميع المعلومات
     const allDoctors = await User.find({ 
       user_type: 'doctor'
-    }).select('-password'); // استبعاد كلمة المرور
+    }).select('name email phone user_type specialty address experience education active isActive disabled createdAt'); // تحديد الحقول المطلوبة
     
     console.log(`📊 إجمالي الأطباء: ${allDoctors.length}`);
     
@@ -316,6 +316,108 @@ app.get('/api/check-users', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Check users error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Create sample doctors endpoint - إنشاء أطباء تجريبيين
+app.post('/api/create-sample-doctors', async (req, res) => {
+  try {
+    console.log('🔍 إنشاء أطباء تجريبيين...');
+    
+    const sampleDoctors = [
+      {
+        name: 'د. أحمد محمد',
+        email: 'ahmed@tabib-iq.com',
+        phone: '07801234567',
+        password: await bcrypt.hash('123456', 10),
+        user_type: 'doctor',
+        specialty: 'طب عام',
+        address: 'شارع الرشيد، بغداد',
+        experience: '15 سنة خبرة في الطب العام',
+        education: 'دكتوراه في الطب - جامعة بغداد',
+        active: true,
+        isActive: true
+      },
+      {
+        name: 'د. فاطمة علي',
+        email: 'fatima@tabib-iq.com',
+        phone: '07801234568',
+        password: await bcrypt.hash('123456', 10),
+        user_type: 'doctor',
+        specialty: 'طب الأطفال',
+        address: 'شارع فلسطين، بغداد',
+        experience: '12 سنة خبرة في طب الأطفال',
+        education: 'دكتوراه في طب الأطفال - جامعة المستنصرية',
+        active: true,
+        isActive: true
+      },
+      {
+        name: 'د. محمد حسن',
+        email: 'mohammed@tabib-iq.com',
+        phone: '07801234569',
+        password: await bcrypt.hash('123456', 10),
+        user_type: 'doctor',
+        specialty: 'طب القلب',
+        address: 'شارع الكفاح، بغداد',
+        experience: '20 سنة خبرة في طب القلب',
+        education: 'دكتوراه في طب القلب - جامعة بغداد',
+        active: true,
+        isActive: true
+      },
+      {
+        name: 'د. نور الهدى',
+        email: 'noor@tabib-iq.com',
+        phone: '07801234570',
+        password: await bcrypt.hash('123456', 10),
+        user_type: 'doctor',
+        specialty: 'طب النساء والولادة',
+        address: 'شارع الرشيد، بغداد',
+        experience: '18 سنة خبرة في طب النساء',
+        education: 'دكتوراه في طب النساء - جامعة بغداد',
+        active: true,
+        isActive: true
+      },
+      {
+        name: 'د. علي كريم',
+        email: 'ali@tabib-iq.com',
+        phone: '07801234571',
+        password: await bcrypt.hash('123456', 10),
+        user_type: 'doctor',
+        specialty: 'طب العظام',
+        address: 'شارع فلسطين، بغداد',
+        experience: '14 سنة خبرة في طب العظام',
+        education: 'دكتوراه في طب العظام - جامعة المستنصرية',
+        active: true,
+        isActive: true
+      }
+    ];
+    
+    const createdDoctors = [];
+    
+    for (const doctorData of sampleDoctors) {
+      // التحقق من عدم وجود الطبيب مسبقاً
+      const existingDoctor = await User.findOne({ email: doctorData.email });
+      if (!existingDoctor) {
+        const doctor = new User(doctorData);
+        await doctor.save();
+        createdDoctors.push(doctor);
+        console.log(`✅ تم إنشاء الطبيب: ${doctor.name}`);
+      } else {
+        console.log(`⚠️ الطبيب موجود مسبقاً: ${doctorData.name}`);
+      }
+    }
+    
+    console.log(`✅ تم إنشاء ${createdDoctors.length} طبيب جديد`);
+    
+    res.json({
+      success: true,
+      message: `تم إنشاء ${createdDoctors.length} طبيب جديد`,
+      createdDoctors: createdDoctors.length,
+      doctors: createdDoctors
+    });
+  } catch (error) {
+    console.error('❌ Create sample doctors error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
