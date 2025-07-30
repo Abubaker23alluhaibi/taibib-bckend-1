@@ -4,7 +4,7 @@
   "description": "Backend API for Tabib IQ medical consultation platform",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node start.js",
     "start:complete": "node server-complete.js",
     "start:minimal": "node server-minimal.js",
     "start:test": "node server-test.js",

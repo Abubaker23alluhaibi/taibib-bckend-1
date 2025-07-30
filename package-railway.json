@@ -1,0 +1,26 @@
+{
+  "name": "tabib-iq-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Tabib IQ medical consultation platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "npm install --omit=dev",
+    "dev": "nodemon server.js"
+  },
+  "keywords": ["medical", "consultation", "healthcare", "api"],
+  "author": "Tabib IQ Team",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "mongoose": "^7.0.3",
+    "multer": "^2.0.0-rc.3"
+  },
+  "engines": {
+    "node": "18.x",
+    "npm": "9.x"
+  }
+} 
