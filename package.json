@@ -4,7 +4,7 @@
   "description": "Backend API for Tabib IQ medical consultation platform",
   "main": "server.js",
   "scripts": {
-    "start": "node start.js",
+    "start": "node server.js",
     "start:complete": "node server-complete.js",
     "start:minimal": "node server-minimal.js",
     "start:test": "node server-test.js",
@@ -18,8 +18,7 @@
     "start:smart": "node server-smart.js",
     "start:real-users": "node server-real-users.js",
     "dev": "nodemon server.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "install": "npm install --omit=dev"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": ["medical", "consultation", "healthcare", "api"],
   "author": "Tabib IQ Team",
@@ -37,7 +36,7 @@
   },
   "engines": {
     "node": "18.x",
-    "npm": "9.x"
+    "npm": "10.x"
   },
   "overrides": {
     "punycode": "2.3.1"
