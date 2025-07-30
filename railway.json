@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "npm start",
+    "startCommand": "node server-railway.js",
     "healthcheckPath": "/api/health",
     "healthcheckInterval": 30,
     "healthcheckTimeout": 60,
