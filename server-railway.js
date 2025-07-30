@@ -79,6 +79,12 @@ const userSchema = new mongoose.Schema({
   address: { type: String },
   experience: { type: String },
   education: { type: String },
+  city: { type: String },
+  workTimes: [{
+    day: String,
+    from: String,
+    to: String
+  }],
   isActive: { type: Boolean, default: true },
   active: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
@@ -218,7 +224,7 @@ app.get('/api/doctors', async (req, res) => {
     // جلب جميع الأطباء مع جميع المعلومات
     const allDoctors = await User.find({ 
       user_type: 'doctor'
-    }).select('name email phone user_type specialty address experience education city active isActive disabled createdAt'); // تحديد الحقول المطلوبة
+    }).select('name email phone user_type specialty address experience education city workTimes active isActive disabled createdAt'); // تحديد الحقول المطلوبة
     
     console.log(`📊 إجمالي الأطباء: ${allDoctors.length}`);
     
@@ -337,6 +343,14 @@ app.post('/api/create-sample-doctors', async (req, res) => {
         city: 'بغداد',
         experience: '15 سنة خبرة في الطب العام',
         education: 'دكتوراه في الطب - جامعة بغداد',
+        workTimes: [
+          { day: 'الأحد', from: '10:00', to: '15:00' },
+          { day: 'الاثنين', from: '10:00', to: '15:00' },
+          { day: 'الثلاثاء', from: '10:00', to: '15:00' },
+          { day: 'الأربعاء', from: '10:00', to: '15:00' },
+          { day: 'الخميس', from: '10:00', to: '15:00' },
+          { day: 'السبت', from: '10:00', to: '12:00' }
+        ],
         active: true,
         isActive: true
       },
@@ -351,6 +365,14 @@ app.post('/api/create-sample-doctors', async (req, res) => {
         city: 'بغداد',
         experience: '12 سنة خبرة في طب الأطفال',
         education: 'دكتوراه في طب الأطفال - جامعة المستنصرية',
+        workTimes: [
+          { day: 'الأحد', from: '09:00', to: '14:00' },
+          { day: 'الاثنين', from: '09:00', to: '14:00' },
+          { day: 'الثلاثاء', from: '09:00', to: '14:00' },
+          { day: 'الأربعاء', from: '09:00', to: '14:00' },
+          { day: 'الخميس', from: '09:00', to: '14:00' },
+          { day: 'السبت', from: '09:00', to: '12:00' }
+        ],
         active: true,
         isActive: true
       },
@@ -365,6 +387,14 @@ app.post('/api/create-sample-doctors', async (req, res) => {
         city: 'بغداد',
         experience: '20 سنة خبرة في طب القلب',
         education: 'دكتوراه في طب القلب - جامعة بغداد',
+        workTimes: [
+          { day: 'الأحد', from: '08:00', to: '16:00' },
+          { day: 'الاثنين', from: '08:00', to: '16:00' },
+          { day: 'الثلاثاء', from: '08:00', to: '16:00' },
+          { day: 'الأربعاء', from: '08:00', to: '16:00' },
+          { day: 'الخميس', from: '08:00', to: '16:00' },
+          { day: 'السبت', from: '08:00', to: '12:00' }
+        ],
         active: true,
         isActive: true
       },
@@ -379,6 +409,14 @@ app.post('/api/create-sample-doctors', async (req, res) => {
         city: 'بغداد',
         experience: '18 سنة خبرة في طب النساء',
         education: 'دكتوراه في طب النساء - جامعة بغداد',
+        workTimes: [
+          { day: 'الأحد', from: '10:00', to: '17:00' },
+          { day: 'الاثنين', from: '10:00', to: '17:00' },
+          { day: 'الثلاثاء', from: '10:00', to: '17:00' },
+          { day: 'الأربعاء', from: '10:00', to: '17:00' },
+          { day: 'الخميس', from: '10:00', to: '17:00' },
+          { day: 'السبت', from: '10:00', to: '14:00' }
+        ],
         active: true,
         isActive: true
       },
@@ -393,6 +431,14 @@ app.post('/api/create-sample-doctors', async (req, res) => {
         city: 'بغداد',
         experience: '14 سنة خبرة في طب العظام',
         education: 'دكتوراه في طب العظام - جامعة المستنصرية',
+        workTimes: [
+          { day: 'الأحد', from: '11:00', to: '18:00' },
+          { day: 'الاثنين', from: '11:00', to: '18:00' },
+          { day: 'الثلاثاء', from: '11:00', to: '18:00' },
+          { day: 'الأربعاء', from: '11:00', to: '18:00' },
+          { day: 'الخميس', from: '11:00', to: '18:00' },
+          { day: 'السبت', from: '11:00', to: '15:00' }
+        ],
         active: true,
         isActive: true
       }
@@ -680,16 +726,34 @@ app.get('/api/doctors/:doctorId', async (req, res) => {
       return res.status(404).json({ message: 'الطبيب غير موجود' });
     }
     
-    // إضافة الأيام المتاحة للحجز
-    const availableDays = [
-      { day: 'الأحد', available: true, times: ['10:00', '11:00', '12:00', '14:00', '15:00'] },
-      { day: 'الاثنين', available: true, times: ['10:00', '11:00', '12:00', '14:00', '15:00'] },
-      { day: 'الثلاثاء', available: true, times: ['10:00', '11:00', '12:00', '14:00', '15:00'] },
-      { day: 'الأربعاء', available: true, times: ['10:00', '11:00', '12:00', '14:00', '15:00'] },
-      { day: 'الخميس', available: true, times: ['10:00', '11:00', '12:00', '14:00', '15:00'] },
-      { day: 'الجمعة', available: false, times: [] },
-      { day: 'السبت', available: true, times: ['10:00', '11:00', '12:00'] }
-    ];
+    // تحويل workTimes إلى availableDays مع الأوقات المتاحة
+    const weekDays = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const availableDays = weekDays.map(day => {
+      const workTime = doctor.workTimes?.find(wt => wt.day === day);
+      if (workTime) {
+        // توليد الأوقات المتاحة كل 30 دقيقة
+        const times = [];
+        const start = new Date(`2000-01-01 ${workTime.from}`);
+        const end = new Date(`2000-01-01 ${workTime.to}`);
+        
+        while (start < end) {
+          times.push(start.toTimeString().slice(0, 5));
+          start.setMinutes(start.getMinutes() + 30);
+        }
+        
+        return {
+          day: day,
+          available: true,
+          times: times
+        };
+      } else {
+        return {
+          day: day,
+          available: false,
+          times: []
+        };
+      }
+    });
     
     const doctorWithDetails = {
       ...doctor.toObject(),
@@ -697,6 +761,7 @@ app.get('/api/doctors/:doctorId', async (req, res) => {
     };
     
     console.log('✅ تم جلب تفاصيل الطبيب:', doctor.name);
+    console.log('📅 الأيام المتاحة:', availableDays.filter(d => d.available).map(d => d.day));
     
     res.json({
       success: true,
