@@ -86,6 +86,23 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
+// Appointment Schema
+const appointmentSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  date: { type: Date, required: true },
+  time: { type: String, required: true },
+  notes: { type: String },
+  status: { 
+    type: String, 
+    enum: ['pending', 'confirmed', 'cancelled', 'completed'], 
+    default: 'pending' 
+  },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Appointment = mongoose.model('Appointment', appointmentSchema);
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
@@ -255,42 +272,228 @@ app.get('/api/notifications', async (req, res) => {
   }
 });
 
-// Appointments endpoint
+// Appointments endpoint - جلب المواعيد
 app.get('/api/appointments', async (req, res) => {
   try {
     const { userId, doctorId } = req.query;
     console.log('🔍 جلب المواعيد:', { userId, doctorId });
     
-    // Return empty appointments for now
-    res.json([]);
+    let query = {};
+    
+    if (userId) {
+      query.userId = userId;
+    }
+    
+    if (doctorId) {
+      query.doctorId = doctorId;
+    }
+    
+    const appointments = await Appointment.find(query)
+      .populate('userId', 'name email phone')
+      .populate('doctorId', 'name email specialty')
+      .sort({ date: 1, time: 1 });
+    
+    console.log(`✅ تم جلب ${appointments.length} موعد`);
+    
+    res.json(appointments);
   } catch (error) {
     console.error('❌ Get appointments error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Create appointment endpoint
+// Create appointment endpoint - إنشاء موعد
 app.post('/api/appointments', async (req, res) => {
   try {
     const { userId, doctorId, date, time, notes } = req.body;
     console.log('🔍 إنشاء موعد:', { userId, doctorId, date, time });
     
-    // Return success for now
+    if (!userId || !doctorId || !date || !time) {
+      return res.status(400).json({ message: 'جميع الحقول مطلوبة' });
+    }
+    
+    // التحقق من وجود المستخدم والطبيب
+    const user = await User.findById(userId);
+    const doctor = await User.findById(doctorId);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'المستخدم غير موجود' });
+    }
+    
+    if (!doctor || doctor.user_type !== 'doctor') {
+      return res.status(404).json({ message: 'الطبيب غير موجود' });
+    }
+    
+    // إنشاء الموعد
+    const appointment = new Appointment({
+      userId,
+      doctorId,
+      date: new Date(date),
+      time,
+      notes
+    });
+    
+    await appointment.save();
+    
+    // جلب الموعد مع بيانات المستخدم والطبيب
+    const savedAppointment = await Appointment.findById(appointment._id)
+      .populate('userId', 'name email phone')
+      .populate('doctorId', 'name email specialty');
+    
+    console.log('✅ تم إنشاء الموعد بنجاح:', savedAppointment._id);
+    
     res.status(201).json({
       success: true,
       message: 'تم إنشاء الموعد بنجاح',
-      appointment: {
-        id: Date.now(),
-        userId,
-        doctorId,
-        date,
-        time,
-        notes,
-        status: 'pending'
-      }
+      appointment: savedAppointment
     });
   } catch (error) {
     console.error('❌ Create appointment error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update appointment status - تحديث حالة الموعد
+app.put('/api/appointments/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    console.log('🔍 تحديث حالة الموعد:', { id, status });
+    
+    if (!['pending', 'confirmed', 'cancelled', 'completed'].includes(status)) {
+      return res.status(400).json({ message: 'حالة غير صحيحة' });
+    }
+    
+    const appointment = await Appointment.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    ).populate('userId', 'name email phone')
+     .populate('doctorId', 'name email specialty');
+    
+    if (!appointment) {
+      return res.status(404).json({ message: 'الموعد غير موجود' });
+    }
+    
+    console.log('✅ تم تحديث حالة الموعد:', appointment._id);
+    
+    res.json({
+      success: true,
+      message: 'تم تحديث حالة الموعد بنجاح',
+      appointment
+    });
+  } catch (error) {
+    console.error('❌ Update appointment error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Delete appointment - حذف موعد
+app.delete('/api/appointments/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('🔍 حذف موعد:', id);
+    
+    const appointment = await Appointment.findByIdAndDelete(id);
+    
+    if (!appointment) {
+      return res.status(404).json({ message: 'الموعد غير موجود' });
+    }
+    
+    console.log('✅ تم حذف الموعد:', id);
+    
+    res.json({
+      success: true,
+      message: 'تم حذف الموعد بنجاح'
+    });
+  } catch (error) {
+    console.error('❌ Delete appointment error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Check all appointments endpoint - فحص جميع المواعيد
+app.get('/api/check-appointments', async (req, res) => {
+  try {
+    console.log('🔍 فحص جميع المواعيد في قاعدة البيانات...');
+    
+    const allAppointments = await Appointment.find({})
+      .populate('userId', 'name email phone')
+      .populate('doctorId', 'name email specialty')
+      .sort({ createdAt: -1 });
+    
+    console.log(`📊 إجمالي المواعيد: ${allAppointments.length}`);
+    
+    // تجميع المواعيد حسب الحالة
+    const pendingAppointments = allAppointments.filter(a => a.status === 'pending');
+    const confirmedAppointments = allAppointments.filter(a => a.status === 'confirmed');
+    const completedAppointments = allAppointments.filter(a => a.status === 'completed');
+    const cancelledAppointments = allAppointments.filter(a => a.status === 'cancelled');
+    
+    console.log(`⏳ المواعيد المعلقة: ${pendingAppointments.length}`);
+    console.log(`✅ المواعيد المؤكدة: ${confirmedAppointments.length}`);
+    console.log(`✅ المواعيد المكتملة: ${completedAppointments.length}`);
+    console.log(`❌ المواعيد الملغية: ${cancelledAppointments.length}`);
+    
+    res.json({
+      totalAppointments: allAppointments.length,
+      pendingAppointments: pendingAppointments.length,
+      confirmedAppointments: confirmedAppointments.length,
+      completedAppointments: completedAppointments.length,
+      cancelledAppointments: cancelledAppointments.length,
+      appointments: allAppointments
+    });
+  } catch (error) {
+    console.error('❌ Check appointments error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get user appointments - جلب مواعيد المستخدم
+app.get('/api/user-appointments/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log('🔍 جلب مواعيد المستخدم:', userId);
+    
+    const userAppointments = await Appointment.find({ userId })
+      .populate('userId', 'name email phone')
+      .populate('doctorId', 'name email specialty')
+      .sort({ date: 1, time: 1 });
+    
+    console.log(`✅ تم جلب ${userAppointments.length} موعد للمستخدم ${userId}`);
+    
+    res.json({
+      success: true,
+      count: userAppointments.length,
+      appointments: userAppointments
+    });
+  } catch (error) {
+    console.error('❌ Get user appointments error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get doctor appointments - جلب مواعيد الطبيب
+app.get('/api/doctor-appointments/:doctorId', async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    console.log('🔍 جلب مواعيد الطبيب:', doctorId);
+    
+    const doctorAppointments = await Appointment.find({ doctorId })
+      .populate('userId', 'name email phone')
+      .populate('doctorId', 'name email specialty')
+      .sort({ date: 1, time: 1 });
+    
+    console.log(`✅ تم جلب ${doctorAppointments.length} موعد للطبيب ${doctorId}`);
+    
+    res.json({
+      success: true,
+      count: doctorAppointments.length,
+      appointments: doctorAppointments
+    });
+  } catch (error) {
+    console.error('❌ Get doctor appointments error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
