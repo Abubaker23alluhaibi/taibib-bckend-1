@@ -4,16 +4,16 @@ services:
     env: node
     plan: free
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: node server-railway.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 5000
       - key: MONGO_URI
-        sync: false
+        value: mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq?retryWrites=true&w=majority&appName=Cluster0&authSource=admin&ssl=true
       - key: JWT_SECRET
-        sync: false
+        value: tabib_iq_secret_key_2024
       - key: CORS_ORIGIN
         value: https://www.tabib-iq.com,https://tabib-iq.com,https://*.vercel.app,https://*.netlify.app
       - key: MAX_FILE_SIZE

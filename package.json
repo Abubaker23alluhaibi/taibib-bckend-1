@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server-railway.js",
+    "start:railway": "node server-railway.js",
     "start:complete": "node server-complete.js",
     "start:minimal": "node server-minimal.js",
     "start:test": "node server-test.js",
