@@ -218,7 +218,7 @@ app.get('/api/doctors', async (req, res) => {
     // جلب جميع الأطباء مع جميع المعلومات
     const allDoctors = await User.find({ 
       user_type: 'doctor'
-    }).select('name email phone user_type specialty address experience education active isActive disabled createdAt'); // تحديد الحقول المطلوبة
+    }).select('name email phone user_type specialty address experience education city active isActive disabled createdAt'); // تحديد الحقول المطلوبة
     
     console.log(`📊 إجمالي الأطباء: ${allDoctors.length}`);
     
@@ -334,6 +334,7 @@ app.post('/api/create-sample-doctors', async (req, res) => {
         user_type: 'doctor',
         specialty: 'طب عام',
         address: 'شارع الرشيد، بغداد',
+        city: 'بغداد',
         experience: '15 سنة خبرة في الطب العام',
         education: 'دكتوراه في الطب - جامعة بغداد',
         active: true,
@@ -347,6 +348,7 @@ app.post('/api/create-sample-doctors', async (req, res) => {
         user_type: 'doctor',
         specialty: 'طب الأطفال',
         address: 'شارع فلسطين، بغداد',
+        city: 'بغداد',
         experience: '12 سنة خبرة في طب الأطفال',
         education: 'دكتوراه في طب الأطفال - جامعة المستنصرية',
         active: true,
@@ -360,6 +362,7 @@ app.post('/api/create-sample-doctors', async (req, res) => {
         user_type: 'doctor',
         specialty: 'طب القلب',
         address: 'شارع الكفاح، بغداد',
+        city: 'بغداد',
         experience: '20 سنة خبرة في طب القلب',
         education: 'دكتوراه في طب القلب - جامعة بغداد',
         active: true,
@@ -373,6 +376,7 @@ app.post('/api/create-sample-doctors', async (req, res) => {
         user_type: 'doctor',
         specialty: 'طب النساء والولادة',
         address: 'شارع الرشيد، بغداد',
+        city: 'بغداد',
         experience: '18 سنة خبرة في طب النساء',
         education: 'دكتوراه في طب النساء - جامعة بغداد',
         active: true,
@@ -386,6 +390,7 @@ app.post('/api/create-sample-doctors', async (req, res) => {
         user_type: 'doctor',
         specialty: 'طب العظام',
         address: 'شارع فلسطين، بغداد',
+        city: 'بغداد',
         experience: '14 سنة خبرة في طب العظام',
         education: 'دكتوراه في طب العظام - جامعة المستنصرية',
         active: true,
@@ -659,6 +664,46 @@ app.get('/api/doctor-appointments/:doctorId', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Get doctor appointments error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get doctor details - جلب تفاصيل الطبيب
+app.get('/api/doctors/:doctorId', async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    console.log('🔍 جلب تفاصيل الطبيب:', doctorId);
+    
+    const doctor = await User.findById(doctorId).select('-password');
+    
+    if (!doctor || doctor.user_type !== 'doctor') {
+      return res.status(404).json({ message: 'الطبيب غير موجود' });
+    }
+    
+    // إضافة الأيام المتاحة للحجز
+    const availableDays = [
+      { day: 'الأحد', available: true, times: ['10:00', '11:00', '12:00', '14:00', '15:00'] },
+      { day: 'الاثنين', available: true, times: ['10:00', '11:00', '12:00', '14:00', '15:00'] },
+      { day: 'الثلاثاء', available: true, times: ['10:00', '11:00', '12:00', '14:00', '15:00'] },
+      { day: 'الأربعاء', available: true, times: ['10:00', '11:00', '12:00', '14:00', '15:00'] },
+      { day: 'الخميس', available: true, times: ['10:00', '11:00', '12:00', '14:00', '15:00'] },
+      { day: 'الجمعة', available: false, times: [] },
+      { day: 'السبت', available: true, times: ['10:00', '11:00', '12:00'] }
+    ];
+    
+    const doctorWithDetails = {
+      ...doctor.toObject(),
+      availableDays
+    };
+    
+    console.log('✅ تم جلب تفاصيل الطبيب:', doctor.name);
+    
+    res.json({
+      success: true,
+      doctor: doctorWithDetails
+    });
+  } catch (error) {
+    console.error('❌ Get doctor details error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
