@@ -38,7 +38,7 @@ npm install
      NODE_ENV=development
      MONGO_URI=your_mongodb_connection_string
      JWT_SECRET=your_jwt_secret
-     CORS_ORIGIN=http://localhost:3000
+     CORS_ORIGIN=https://tabib-iq.com,https://www.tabib-iq.com,http://localhost:3000
      MAX_FILE_SIZE=5242880
      UPLOAD_PATH=./uploads
      ```

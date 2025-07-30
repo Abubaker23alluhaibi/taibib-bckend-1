@@ -6,8 +6,10 @@ const multer = require('multer');
 const path = require('path');
 require('dotenv').config();
 
+const app = express();
+
 const corsOptions = {
-  origin: ['https://www.tabib-iq.com', 'http://localhost:3000'],
+  origin: ['https://tabib-iq.com', 'https://www.tabib-iq.com', 'http://localhost:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
