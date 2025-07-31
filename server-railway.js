@@ -128,7 +128,11 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/api/health',
       admin: '/api/admin/init',
-      test: '/api/test-login'
+      test: '/api/test-login',
+      doctors: '/api/doctors',
+      convertDoctor: '/api/convert-doctor/:userId',
+      convertAllDoctors: '/api/convert-all-doctors',
+      checkDoctorsStatus: '/api/check-doctors-status'
     }
   });
 });
@@ -1127,6 +1131,59 @@ app.post('/api/convert-all-doctors', async (req, res) => {
   }
 });
 
+// Check doctors status - فحص حالة الأطباء في كلا الجدولين
+app.get('/api/check-doctors-status', async (req, res) => {
+  try {
+    console.log('🔍 فحص حالة الأطباء في كلا الجدولين...');
+    
+    // جلب الأطباء من جدول User
+    const userDoctors = await User.find({ user_type: 'doctor' }).select('_id name email specialty active isActive');
+    console.log(`📊 الأطباء في جدول User: ${userDoctors.length}`);
+    
+    // جلب الأطباء من جدول Doctor
+    const doctorDoctors = await Doctor.find({}).select('_id userId name email specialty status active disabled');
+    console.log(`📊 الأطباء في جدول Doctor: ${doctorDoctors.length}`);
+    
+    // تحليل الأطباء
+    const analysis = {
+      userTable: {
+        total: userDoctors.length,
+        active: userDoctors.filter(d => d.active && d.isActive).length,
+        inactive: userDoctors.filter(d => !d.active || !d.isActive).length,
+        doctors: userDoctors
+      },
+      doctorTable: {
+        total: doctorDoctors.length,
+        approved: doctorDoctors.filter(d => d.status === 'approved').length,
+        pending: doctorDoctors.filter(d => d.status === 'pending').length,
+        active: doctorDoctors.filter(d => d.active && !d.disabled).length,
+        inactive: doctorDoctors.filter(d => !d.active || d.disabled).length,
+        doctors: doctorDoctors
+      },
+      conversionStatus: {
+        converted: doctorDoctors.length,
+        notConverted: userDoctors.length - doctorDoctors.length,
+        orphaned: doctorDoctors.filter(d => !d.userId).length
+      }
+    };
+    
+    console.log('📋 تحليل الأطباء:', analysis);
+    
+    res.json({
+      success: true,
+      analysis: analysis
+    });
+    
+  } catch (error) {
+    console.error('❌ Check doctors status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في فحص حالة الأطباء',
+      error: error.message
+    });
+  }
+});
+
 // Test login endpoint - اختبار تسجيل الدخول
 app.post('/api/test-login', async (req, res) => {
   try {
@@ -2114,6 +2171,9 @@ const startServer = async () => {
     console.log(`🌐 Admin list: http://localhost:${PORT}/api/admin/list`);
     console.log(`🌐 Create test user: http://localhost:${PORT}/api/create-test-user`);
     console.log(`🌐 Test login: http://localhost:${PORT}/api/test-login`);
+    console.log(`🌐 Doctors: http://localhost:${PORT}/api/doctors`);
+    console.log(`🌐 Convert all doctors: http://localhost:${PORT}/api/convert-all-doctors`);
+    console.log(`🌐 Check doctors status: http://localhost:${PORT}/api/check-doctors-status`);
     console.log(`📊 Database: ${dbConnected ? 'Connected' : 'Disconnected'}`);
     console.log(`🔑 Default Admin: admin@tabib-iq.com / Admin123!@#`);
     console.log(`🧪 Test User: test@tabib-iq.com / 123456`);
