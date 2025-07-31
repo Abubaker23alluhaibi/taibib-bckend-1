@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server-railway.js",
-    "build": "echo 'Build completed'",
+    "build": "echo 'No build step required'",
     "start:local": "node server-local.js",
     "start:railway": "node server-railway.js",
     "start:complete": "node server-complete.js",
