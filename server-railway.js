@@ -4,6 +4,8 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const fs = require('fs');
 
 // Load environment variables
 require('dotenv').config();
@@ -83,6 +85,38 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Multer configuration for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
+});
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -1275,6 +1309,114 @@ app.get('/api/doctors/:doctorId', async (req, res) => {
   } catch (error) {
     console.error('❌ Get doctor details error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Change password endpoint - تغيير كلمة المرور
+app.put('/api/change-password/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { currentPassword, newPassword } = req.body;
+    
+    console.log('🔍 تغيير كلمة المرور للمستخدم:', userId);
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'كلمة المرور الحالية والجديدة مطلوبة' 
+      });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل' 
+      });
+    }
+    
+    // البحث عن المستخدم
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'المستخدم غير موجود' 
+      });
+    }
+    
+    // التحقق من كلمة المرور الحالية
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'كلمة المرور الحالية غير صحيحة' 
+      });
+    }
+    
+    // تشفير كلمة المرور الجديدة
+    const salt = await bcrypt.genSalt(10);
+    const hashedNewPassword = await bcrypt.hash(newPassword, salt);
+    
+    // تحديث كلمة المرور
+    user.password = hashedNewPassword;
+    await user.save();
+    
+    console.log('✅ تم تغيير كلمة المرور بنجاح للمستخدم:', user.email);
+    
+    res.json({
+      success: true,
+      message: 'تم تغيير كلمة المرور بنجاح'
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في تغيير كلمة المرور:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'خطأ في الخادم' 
+    });
+  }
+});
+
+// Upload profile image endpoint - رفع الصورة الشخصية
+app.post('/api/upload-profile-image', upload.single('profileImage'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'لم يتم اختيار صورة' 
+      });
+    }
+    
+    const { userId } = req.body;
+    console.log('🔍 رفع الصورة الشخصية للمستخدم:', userId);
+    
+    // التحقق من وجود المستخدم
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'المستخدم غير موجود' 
+      });
+    }
+    
+    // حفظ مسار الصورة
+    const imagePath = `/uploads/${req.file.filename}`;
+    user.profileImage = imagePath;
+    await user.save();
+    
+    console.log('✅ تم رفع الصورة الشخصية بنجاح:', imagePath);
+    
+    res.json({
+      success: true,
+      imagePath: imagePath,
+      message: 'تم رفع الصورة الشخصية بنجاح'
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في رفع الصورة الشخصية:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'خطأ في رفع الصورة' 
+    });
   }
 });
 
