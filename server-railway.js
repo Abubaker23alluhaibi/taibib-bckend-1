@@ -268,6 +268,55 @@ const appointmentSchema = new mongoose.Schema({
 
 const Appointment = mongoose.model('Appointment', appointmentSchema);
 
+// Doctor Schema
+const doctorSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  email: { type: String },
+  password: { type: String },
+  name: { type: String },
+  phone: { type: String },
+  specialty: { type: String },
+  specialization: { type: String },
+  province: { type: String },
+  area: { type: String },
+  clinicLocation: { type: String },
+  image: { type: String },
+  profileImage: { type: String },
+  idFront: { type: String },
+  idBack: { type: String },
+  syndicateFront: { type: String },
+  syndicateBack: { type: String },
+  about: { type: String },
+  bio: { type: String },
+  workTimes: [{
+    day: String,
+    from: String,
+    to: String
+  }],
+  availableDays: [String],
+  availableHours: {
+    start: String,
+    end: String
+  },
+  experienceYears: { type: Number },
+  experience: { type: Number },
+  consultationFee: { type: Number },
+  isIndependent: { type: Boolean },
+  status: { type: String, default: 'pending' },
+  isVerified: { type: Boolean, default: false },
+  isAvailable: { type: Boolean, default: true },
+  active: { type: Boolean, default: true },
+  disabled: { type: Boolean, default: false },
+  is_featured: { type: Boolean, default: false },
+  user_type: { type: String, default: 'doctor' },
+  rating: { type: Number, default: 0 },
+  totalRatings: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now },
+  created_at: { type: Date, default: Date.now }
+});
+
+const Doctor = mongoose.model('Doctor', doctorSchema);
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
@@ -1636,6 +1685,125 @@ app.post('/api/upload-profile-image', upload.single('profileImage'), async (req,
     res.status(500).json({ 
       success: false, 
       error: 'خطأ في رفع الصورة' 
+    });
+  }
+});
+
+// Doctor registration endpoint
+app.post('/api/doctors', upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'idFront', maxCount: 1 },
+  { name: 'idBack', maxCount: 1 },
+  { name: 'syndicateFront', maxCount: 1 },
+  { name: 'syndicateBack', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    console.log('📤 استلام طلب تسجيل طبيب جديد');
+    
+    const {
+      name,
+      email,
+      phone,
+      password,
+      specialty,
+      province,
+      area,
+      clinicLocation,
+      about,
+      experienceYears,
+      workTimes
+    } = req.body;
+    
+    // التحقق من البيانات المطلوبة
+    if (!name || !email || !phone || !password || !specialty || !province) {
+      return res.status(400).json({
+        success: false,
+        error: 'جميع الحقول المطلوبة يجب ملؤها'
+      });
+    }
+    
+    // التحقق من عدم وجود المستخدم
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: 'البريد الإلكتروني مستخدم بالفعل'
+      });
+    }
+    
+    // تشفير كلمة المرور
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    
+    // إنشاء المستخدم
+    const user = new User({
+      name,
+      email,
+      phone,
+      password: hashedPassword,
+      user_type: 'doctor',
+      active: true
+    });
+    
+    await user.save();
+    console.log('✅ تم إنشاء المستخدم للطبيب:', user._id);
+    
+    // إنشاء ملف الطبيب
+    const doctorData = {
+      userId: user._id,
+      specialty,
+      province,
+      area: area || '',
+      clinicLocation: clinicLocation || '',
+      about: about || '',
+      experienceYears: experienceYears || '',
+      workTimes: workTimes ? JSON.parse(workTimes) : [],
+      status: 'pending', // يحتاج موافقة الأدمن
+      isVerified: false,
+      active: false
+    };
+    
+    // إضافة الصور والوثائق إذا كانت موجودة
+    if (req.files) {
+      if (req.files.image) {
+        doctorData.profileImage = `/uploads/${req.files.image[0].filename}`;
+      }
+      if (req.files.idFront) {
+        doctorData.idFront = `/uploads/${req.files.idFront[0].filename}`;
+      }
+      if (req.files.idBack) {
+        doctorData.idBack = `/uploads/${req.files.idBack[0].filename}`;
+      }
+      if (req.files.syndicateFront) {
+        doctorData.syndicateFront = `/uploads/${req.files.syndicateFront[0].filename}`;
+      }
+      if (req.files.syndicateBack) {
+        doctorData.syndicateBack = `/uploads/${req.files.syndicateBack[0].filename}`;
+      }
+    }
+    
+    const doctor = new Doctor(doctorData);
+    await doctor.save();
+    
+    console.log('✅ تم إنشاء ملف الطبيب:', doctor._id);
+    
+    res.status(201).json({
+      success: true,
+      message: 'تم تسجيل الطبيب بنجاح. سيتم مراجعة طلبك من قبل الإدارة.',
+      doctor: {
+        id: doctor._id,
+        name: user.name,
+        email: user.email,
+        specialty,
+        status: 'pending'
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في تسجيل الطبيب:', error);
+    res.status(500).json({
+      success: false,
+      error: 'خطأ في تسجيل الطبيب. حاول مرة أخرى.'
     });
   }
 });
