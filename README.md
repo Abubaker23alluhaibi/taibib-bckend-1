@@ -1,256 +1,147 @@
 # Tabib IQ Backend API
 
-Backend API for Tabib IQ medical consultation platform built with Node.js, Express, and MongoDB.
+## 🚀 الخادم الخلفي لمنصة طبيب العراق للاستشارات الطبية
 
-## 🚀 Features
+### 📋 الوصف
+خادم API مخصص لمنصة طبيب العراق، يوفر خدمات الاستشارات الطبية وإدارة المستخدمين والأطباء.
 
-- **User Authentication**: Register, login, and profile management
-- **Doctor Management**: Doctor registration, profiles, and verification
-- **Appointment System**: Create, manage, and track appointments
-- **File Upload**: Support for images and documents
-- **Health Check**: API health monitoring endpoint
-- **CORS Support**: Cross-origin resource sharing configuration
+## 🌐 الروابط
 
-## 📋 Prerequisites
+### الإنتاج (Production)
+- **الخادم الرئيسي**: https://tabib-iq-backend-production.up.railway.app
+- **فحص الصحة**: https://tabib-iq-backend-production.up.railway.app/api/health
 
-- Node.js (v14 or higher)
-- MongoDB Atlas account
-- npm or yarn
+### التطوير المحلي (Local Development)
+- **الخادم المحلي**: http://localhost:5000
+- **فحص الصحة**: http://localhost:5000/api/health
 
-## 🛠️ Installation
+## 🛠️ التثبيت والتشغيل
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd tabib-iq-backend
-   ```
+### المتطلبات
+- Node.js 18.x أو أحدث
+- npm 10.x أو أحدث
 
-2. **Install dependencies**
+### التثبيت
 ```bash
 npm install
 ```
 
-3. **Environment Setup**
-   - Copy `env.example` to `.env`
-   - Update the following variables:
-     ```env
-     PORT=5000
-     NODE_ENV=development
-     MONGO_URI=your_mongodb_connection_string
-     JWT_SECRET=your_jwt_secret
-     CORS_ORIGIN=https://tabib-iq.com,https://www.tabib-iq.com,http://localhost:3000
-     MAX_FILE_SIZE=5242880
-     UPLOAD_PATH=./uploads
-     ```
-
-4. **Create uploads directory**
+### التشغيل المحلي
 ```bash
-   mkdir uploads
+# تشغيل الخادم المحلي
+npm run start:local
+
+# تشغيل مع nodemon للتطوير
+npm run dev:local
 ```
 
-## 🚀 Running the Application
-
-### Development
-```bash
-npm run dev
-```
-
-### Production
+### التشغيل للإنتاج
 ```bash
 npm start
 ```
 
-The server will start on `http://localhost:5000`
+## 🔧 المتغيرات البيئية
 
-## 📚 API Endpoints
-
-### Root
-- `GET /` - API information and available endpoints
-
-### Health Check
-- `GET /api/health` - Check API health status
-- `GET /api/test-db` - Test database connection
-
-### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - User login
-
-### Doctors
-- `POST /api/doctors` - Create doctor profile
-- `GET /api/doctors` - Get all verified doctors
-- `GET /api/doctors/:id` - Get specific doctor
-
-### Appointments
-- `POST /api/appointments` - Create appointment
-- `GET /api/appointments/patient/:patientId` - Get patient appointments
-- `GET /api/appointments/doctor/:doctorId` - Get doctor appointments
-- `PUT /api/appointments/:id/status` - Update appointment status
-
-## 🗄️ Database Schema
-
-### User Schema
-```javascript
-{
-  name: String,
-  email: String (unique),
-  password: String (hashed),
-  phone: String,
-  role: String (patient/doctor/admin),
-  avatar: String,
-  createdAt: Date,
-  updatedAt: Date
-}
+### للإنتاج (Railway/Vercel)
+```env
+NODE_ENV=production
+PORT=5000
+MONGO_URI=mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq
+JWT_SECRET=tabib_iq_secret_key_2024
+CORS_ORIGIN=https://www.tabib-iq.com,https://tabib-iq.com,https://*.vercel.app,https://*.netlify.app
+MAX_FILE_SIZE=5242880
+UPLOAD_PATH=./uploads
 ```
 
-### Doctor Schema
-```javascript
-{
-  userId: ObjectId (ref: User),
-  specialization: String,
-  license: String,
-  experience: Number,
-  bio: String,
-  consultationFee: Number,
-  availableDays: [String],
-  availableHours: { start: String, end: String },
-  rating: Number,
-  totalRatings: Number,
-  isVerified: Boolean,
-  isAvailable: Boolean
-}
+### للتطوير المحلي
+```env
+NODE_ENV=development
+PORT=5000
+MONGO_URI=mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq
+JWT_SECRET=tabib_iq_secret_key_2024
+CORS_ORIGIN=http://localhost:3000,http://localhost:3001,https://tabib-iq.com,https://www.tabib-iq.com
+MAX_FILE_SIZE=5242880
+UPLOAD_PATH=./uploads
 ```
 
-### Appointment Schema
-```javascript
-{
-  patientId: ObjectId (ref: User),
-  doctorId: ObjectId (ref: Doctor),
-  date: Date,
-  time: String,
-  status: String (pending/confirmed/cancelled/completed),
-  type: String (consultation/follow-up),
-  notes: String,
-  symptoms: String,
-  prescription: String,
-  createdAt: Date
-}
-```
+## 📡 النقاط النهائية (API Endpoints)
 
-## 🔧 Configuration
+### فحص الصحة
+- **GET** `/api/health` - فحص حالة الخادم
 
-### Environment Variables
-- `PORT`: Server port (default: 5000)
-- `NODE_ENV`: Environment (development/production)
-- `MONGO_URI`: MongoDB connection string
-- `JWT_SECRET`: Secret key for JWT tokens
-- `CORS_ORIGIN`: Allowed CORS origins
-- `MAX_FILE_SIZE`: Maximum file upload size in bytes
-- `UPLOAD_PATH`: Directory for uploaded files
+### إدارة الأدمن
+- **GET** `/api/test-admin` - فحص وجود الأدمن
+- **POST** `/api/admin/init` - إنشاء أدمن افتراضي
+- **GET** `/api/admin/list` - قائمة الأدمن
 
-## 📁 Project Structure
+### المستخدمين
+- **POST** `/api/create-test-user` - إنشاء مستخدم تجريبي
+- **POST** `/api/test-login` - تسجيل دخول تجريبي
 
-```
-tabib-iq-backend/
-├── server.js          # Main application file
-├── package.json       # Dependencies and scripts
-├── .env              # Environment variables
-├── env.example       # Environment variables template
-├── env.production    # Production environment variables
-├── uploads/          # File upload directory
-├── README.md         # This file
-├── .gitignore        # Git ignore rules
-├── Procfile          # Heroku configuration
-├── railway.json      # Railway configuration
-├── render.yaml       # Render configuration
-└── vercel.json       # Vercel configuration
-```
+### الأطباء
+- **GET** `/api/doctors` - قائمة الأطباء
+- **GET** `/api/doctors/:id` - تفاصيل طبيب
+- **POST** `/api/doctors` - إضافة طبيب جديد
 
-## 🚀 Deployment
+### المواعيد
+- **GET** `/api/appointments` - قائمة المواعيد
+- **POST** `/api/appointments` - حجز موعد جديد
 
-### Railway (Recommended)
-1. Connect your GitHub repository to Railway
-2. Set environment variables in Railway dashboard:
-   ```env
-   NODE_ENV=production
-   PORT=5000
-   MONGO_URI=your_mongodb_connection_string
-   JWT_SECRET=your_jwt_secret
-   CORS_ORIGIN=https://tabib-iq.com,https://www.tabib-iq.com
-   MAX_FILE_SIZE=5242880
-   UPLOAD_PATH=./uploads
-   ```
-3. Deploy automatically
+## 🔑 بيانات الدخول الافتراضية
 
-### Render
-1. Connect your GitHub repository to Render
-2. Set environment variables in Render dashboard
-3. Deploy automatically
+### الأدمن
+- **البريد الإلكتروني**: admin@tabib-iq.com
+- **كلمة المرور**: Admin123!@#
+
+### المستخدم التجريبي
+- **البريد الإلكتروني**: test@tabib-iq.com
+- **كلمة المرور**: 123456
+
+## 🚀 النشر
+
+### Railway
+1. اربط repository مع Railway
+2. أضف المتغيرات البيئية
+3. سيتم النشر تلقائياً
 
 ### Vercel
-1. Install Vercel CLI: `npm i -g vercel`
-2. Run: `vercel`
-3. Set environment variables in Vercel dashboard
+1. اربط repository مع Vercel
+2. أضف المتغيرات البيئية
+3. سيتم النشر تلقائياً
 
-### Heroku
-1. Install Heroku CLI
-2. Run: `heroku create`
-3. Set environment variables: `heroku config:set KEY=value`
-4. Deploy: `git push heroku main`
+## 🔍 استكشاف الأخطاء
 
-## 🔍 Health Check
+### مشاكل DNS المحلية
+إذا واجهت مشاكل DNS محلياً، راجع ملف `DNS_TROUBLESHOOTING.md`
 
-The API includes health check endpoints:
+### مشاكل الاتصال
+1. تأكد من إعدادات CORS
+2. تحقق من المتغيرات البيئية
+3. تأكد من اتصال قاعدة البيانات
 
-### Root endpoint (`GET /`)
-```json
-{
-  "message": "Tabib IQ API is running!",
-  "version": "1.0.0",
-  "timestamp": "2024-01-01T00:00:00.000Z",
-  "endpoints": {
-    "health": "/api/health",
-    "auth": {
-      "register": "/api/auth/register",
-      "login": "/api/auth/login"
-    },
-    "doctors": {
-      "list": "/api/doctors",
-      "create": "/api/doctors",
-      "get": "/api/doctors/:id"
-    },
-    "appointments": {
-      "create": "/api/appointments",
-      "patient": "/api/appointments/patient/:patientId",
-      "doctor": "/api/appointments/doctor/:doctorId",
-      "update": "/api/appointments/:id/status"
-    }
-  }
-}
+## 📁 هيكل الملفات
+
+```
+├── server-railway.js      # الخادم الرئيسي للإنتاج
+├── server-local.js        # الخادم المحلي للتطوير
+├── env.railway           # متغيرات الإنتاج
+├── env.local             # متغيرات التطوير المحلي
+├── package.json          # تبعيات المشروع
+├── Procfile              # إعدادات Railway
+└── README.md             # هذا الملف
 ```
 
-### Health check (`GET /api/health`)
-```json
-{
-  "status": "healthy",
-  "timestamp": "2024-01-01T00:00:00.000Z",
-  "database": "connected",
-  "uptime": 123.456,
-  "environment": "production"
-}
-```
+## 🤝 المساهمة
 
-## 🤝 Contributing
+1. Fork المشروع
+2. أنشئ branch جديد
+3. أضف التحديثات
+4. أرسل Pull Request
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+## 📄 الرخصة
 
-## 📄 License
+ISC License
 
-This project is licensed under the ISC License.
+## 📞 الدعم
 
-## 🆘 Support
-
-For support, please contact the development team or create an issue in the repository. 
+للدعم التقني، تواصل مع فريق التطوير. 
