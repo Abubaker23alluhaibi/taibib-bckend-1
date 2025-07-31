@@ -2,7 +2,28 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
+const path = require('path');
+const jwt = require('jsonwebtoken');
+
+// Load environment variables
 require('dotenv').config();
+
+// Override with railway env if exists
+try {
+  const fs = require('fs');
+  const railwayEnvPath = path.join(__dirname, 'env.railway');
+  if (fs.existsSync(railwayEnvPath)) {
+    const envContent = fs.readFileSync(railwayEnvPath, 'utf8');
+    envContent.split('\n').forEach(line => {
+      const [key, value] = line.split('=');
+      if (key && value) {
+        process.env[key.trim()] = value.trim();
+      }
+    });
+  }
+} catch (error) {
+  console.log('⚠️ Could not load railway env file:', error.message);
+}
 
 const app = express();
 
@@ -165,6 +186,150 @@ app.get('/api/test-admin', async (req, res) => {
       success: false,
       message: 'خطأ في الخادم',
       error: error.message
+    });
+  }
+});
+
+// Create admin endpoint - إنشاء حساب أدمن جديد
+app.post('/api/admin/create', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'الاسم والبريد الإلكتروني وكلمة المرور مطلوبة' 
+      });
+    }
+    
+    // التحقق من عدم وجود أدمن بنفس البريد الإلكتروني
+    const existingAdmin = await Admin.findOne({ email });
+    if (existingAdmin) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'الأدمن موجود بالفعل بهذا البريد الإلكتروني' 
+      });
+    }
+    
+    // تشفير كلمة المرور
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    
+    // إنشاء الأدمن الجديد
+    const newAdmin = new Admin({
+      name,
+      email,
+      password: hashedPassword,
+      role: 'admin',
+      active: true
+    });
+    
+    await newAdmin.save();
+    
+    console.log('✅ تم إنشاء أدمن جديد:', email);
+    
+    res.status(201).json({
+      success: true,
+      message: 'تم إنشاء حساب الأدمن بنجاح',
+      admin: {
+        _id: newAdmin._id,
+        name: newAdmin.name,
+        email: newAdmin.email,
+        role: newAdmin.role,
+        active: newAdmin.active
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Create admin error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'خطأ في الخادم',
+      error: error.message 
+    });
+  }
+});
+
+// Initialize default admin - إنشاء أدمن افتراضي
+app.post('/api/admin/init', async (req, res) => {
+  try {
+    const defaultAdminEmail = 'admin@tabib-iq.com';
+    const defaultAdminPassword = 'Admin123!@#';
+    
+    // التحقق من وجود الأدمن الافتراضي
+    const existingAdmin = await Admin.findOne({ email: defaultAdminEmail });
+    if (existingAdmin) {
+      return res.json({
+        success: true,
+        message: 'الأدمن الافتراضي موجود بالفعل',
+        admin: {
+          _id: existingAdmin._id,
+          name: existingAdmin.name,
+          email: existingAdmin.email,
+          role: existingAdmin.role
+        }
+      });
+    }
+    
+    // تشفير كلمة المرور
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(defaultAdminPassword, salt);
+    
+    // إنشاء الأدمن الافتراضي
+    const defaultAdmin = new Admin({
+      name: 'مدير النظام',
+      email: defaultAdminEmail,
+      password: hashedPassword,
+      role: 'admin',
+      active: true
+    });
+    
+    await defaultAdmin.save();
+    
+    console.log('✅ تم إنشاء الأدمن الافتراضي:', defaultAdminEmail);
+    
+    res.status(201).json({
+      success: true,
+      message: 'تم إنشاء الأدمن الافتراضي بنجاح',
+      admin: {
+        _id: defaultAdmin._id,
+        name: defaultAdmin.name,
+        email: defaultAdmin.email,
+        role: defaultAdmin.role
+      },
+      credentials: {
+        email: defaultAdminEmail,
+        password: defaultAdminPassword
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Init admin error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'خطأ في الخادم',
+      error: error.message 
+    });
+  }
+});
+
+// List all admins - قائمة جميع الأدمن
+app.get('/api/admin/list', async (req, res) => {
+  try {
+    const admins = await Admin.find({}).select('-password');
+    
+    res.json({
+      success: true,
+      count: admins.length,
+      admins: admins
+    });
+    
+  } catch (error) {
+    console.error('❌ List admins error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'خطأ في الخادم',
+      error: error.message 
     });
   }
 });
@@ -878,14 +1043,37 @@ const startServer = async () => {
   const dbConnected = await connectDB();
   
   if (dbConnected) {
-    // التحقق من وجود الأدمن في قاعدة البيانات
+    // التحقق من وجود الأدمن في قاعدة البيانات وإنشاء الأدمن الافتراضي
     try {
-      const adminExists = await Admin.findOne({ email: 'adMinaBuBaKeRAK@tabibIQ.trIQ' });
+      const defaultAdminEmail = 'admin@tabib-iq.com';
+      const adminExists = await Admin.findOne({ email: defaultAdminEmail });
+      
       if (adminExists) {
-        console.log('✅ الأدمن الحقيقي موجود في قاعدة البيانات');
+        console.log('✅ الأدمن الافتراضي موجود في قاعدة البيانات:', defaultAdminEmail);
       } else {
-        console.log('⚠️ الأدمن غير موجود في قاعدة البيانات');
+        // إنشاء الأدمن الافتراضي
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash('Admin123!@#', salt);
+        
+        const defaultAdmin = new Admin({
+          name: 'مدير النظام',
+          email: defaultAdminEmail,
+          password: hashedPassword,
+          role: 'admin',
+          active: true
+        });
+        
+        await defaultAdmin.save();
+        console.log('✅ تم إنشاء الأدمن الافتراضي تلقائياً:', defaultAdminEmail);
+        console.log('🔑 بيانات الدخول: admin@tabib-iq.com / Admin123!@#');
       }
+      
+      // التحقق من الأدمن القديم أيضاً
+      const oldAdminExists = await Admin.findOne({ email: 'adMinaBuBaKeRAK@tabibIQ.trIQ' });
+      if (oldAdminExists) {
+        console.log('✅ الأدمن القديم موجود أيضاً في قاعدة البيانات');
+      }
+      
     } catch (error) {
       console.log('⚠️ خطأ في التحقق من الأدمن:', error.message);
     }
@@ -895,7 +1083,10 @@ const startServer = async () => {
     console.log(`✅ Server running on port ${PORT}`);
     console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
     console.log(`🌐 Test admin: http://localhost:${PORT}/api/test-admin`);
+    console.log(`🌐 Admin init: http://localhost:${PORT}/api/admin/init`);
+    console.log(`🌐 Admin list: http://localhost:${PORT}/api/admin/list`);
     console.log(`📊 Database: ${dbConnected ? 'Connected' : 'Disconnected'}`);
+    console.log(`🔑 Default Admin: admin@tabib-iq.com / Admin123!@#`);
   });
 };
 
