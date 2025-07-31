@@ -40,23 +40,43 @@ const app = express();
 
 // CORS Configuration - FIXED for Railway
 app.use(cors({
-  origin: [
-    'https://tabib-iq.com',
-    'https://www.tabib-iq.com',
-    'https://api.tabib-iq.com',
-    'http://localhost:3000',
-    'https://tabib-iq-frontend.vercel.app',
-    'https://tabib-iq-frontend-git-main.vercel.app'
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'https://tabib-iq.com',
+      'https://www.tabib-iq.com',
+      'https://api.tabib-iq.com',
+      'http://localhost:3000',
+      'https://tabib-iq-frontend.vercel.app',
+      'https://tabib-iq-frontend-git-main.vercel.app'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('🚫 Origin not allowed:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: false,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept', 'X-Requested-With', 'Cache-Control'],
+  preflightContinue: false,
+  optionsSuccessStatus: 200
 }));
 
-// Handle preflight requests
-app.options('*', cors());
+// Handle preflight requests explicitly
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, Accept, X-Requested-With, Cache-Control');
+  res.header('Access-Control-Allow-Credentials', 'false');
+  res.status(200).end();
+});
 
-// Additional CORS middleware
+// Additional CORS middleware for extra safety
 app.use((req, res, next) => {
   const allowedOrigins = [
     'https://tabib-iq.com',
@@ -67,15 +87,20 @@ app.use((req, res, next) => {
   ];
   
   const origin = req.headers.origin;
+  
+  // Set CORS headers for all responses
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, Accept, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, Accept, X-Requested-With, Cache-Control');
   res.setHeader('Access-Control-Allow-Credentials', 'false');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('🔍 Preflight request received for:', req.url);
     res.status(200).end();
     return;
   }
@@ -339,6 +364,7 @@ const Doctor = mongoose.model('Doctor', doctorSchema);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  console.log('🔍 Health check request received from:', req.headers.origin);
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   const dbState = mongoose.connection.readyState;
   
@@ -359,11 +385,23 @@ app.get('/api/health', (req, res) => {
       PORT: process.env.PORT || 5000
     },
     cors: 'enabled',
+    requestOrigin: req.headers.origin,
     models: {
       user: User ? 'initialized' : 'not initialized',
       admin: Admin ? 'initialized' : 'not initialized',
       appointment: Appointment ? 'initialized' : 'not initialized'
     }
+  });
+});
+
+// CORS test endpoint
+app.get('/api/cors-test', (req, res) => {
+  console.log('🔍 CORS test request received from:', req.headers.origin);
+  res.json({
+    success: true,
+    message: 'CORS is working correctly',
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString()
   });
 });
 
