@@ -392,8 +392,8 @@ app.post('/api/admin/create', async (req, res) => {
 // Initialize default admin - إنشاء أدمن افتراضي
 app.post('/api/admin/init', async (req, res) => {
   try {
-    const defaultAdminEmail = 'admin@tabib-iq.com';
-    const defaultAdminPassword = 'Admin123!@#';
+    const defaultAdminEmail = 'newadmin@tabib-iq.com';
+    const defaultAdminPassword = 'NewAdmin123!';
     
     // التحقق من وجود الأدمن الافتراضي
     const existingAdmin = await Admin.findOne({ email: defaultAdminEmail });
