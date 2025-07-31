@@ -12,14 +12,23 @@ require('dotenv').config();
 try {
   const fs = require('fs');
   const railwayEnvPath = path.join(__dirname, 'env.railway');
+  console.log('🔍 فحص ملف env.railway:', railwayEnvPath);
+  console.log('🔧 ملف env.railway موجود:', fs.existsSync(railwayEnvPath));
+  
   if (fs.existsSync(railwayEnvPath)) {
     const envContent = fs.readFileSync(railwayEnvPath, 'utf8');
+    console.log('📄 محتوى ملف env.railway:', envContent);
+    
     envContent.split('\n').forEach(line => {
       const [key, value] = line.split('=');
       if (key && value) {
         process.env[key.trim()] = value.trim();
+        console.log(`🔧 تم تعيين ${key.trim()}: ${value.trim()}`);
       }
     });
+    console.log('✅ تم تحميل ملف env.railway بنجاح');
+  } else {
+    console.log('⚠️ ملف env.railway غير موجود');
   }
 } catch (error) {
   console.log('⚠️ Could not load railway env file:', error.message);
@@ -82,8 +91,20 @@ const connectDB = async () => {
   try {
     console.log('🔍 محاولة الاتصال بقاعدة البيانات...');
     console.log('🔧 MONGO_URI exists:', !!process.env.MONGO_URI);
+    console.log('🔧 MONGO_URI length:', process.env.MONGO_URI ? process.env.MONGO_URI.length : 0);
+    console.log('🔧 MONGO_URI preview:', process.env.MONGO_URI ? process.env.MONGO_URI.substring(0, 50) + '...' : 'Not defined');
     
-    await mongoose.connect(MONGO_URI);
+    // إضافة خيارات اتصال أفضل
+    const options = {
+      serverSelectionTimeoutMS: 5000, // 5 ثواني
+      socketTimeoutMS: 45000, // 45 ثانية
+      connectTimeoutMS: 10000, // 10 ثواني
+      maxPoolSize: 10,
+      retryWrites: true,
+      w: 'majority'
+    };
+    
+    await mongoose.connect(MONGO_URI, options);
     console.log('✅ MongoDB connected successfully');
     
     // اختبار الاتصال
@@ -375,6 +396,15 @@ app.post('/api/auth/login', async (req, res) => {
     console.log('🔍 Login attempt:', { email, loginType });
     console.log('🔧 JWT_SECRET exists:', !!process.env.JWT_SECRET);
     console.log('🔧 MONGO_URI exists:', !!process.env.MONGO_URI);
+    
+    // التحقق من اتصال قاعدة البيانات
+    if (mongoose.connection.readyState !== 1) {
+      console.log('❌ قاعدة البيانات غير متصلة');
+      return res.status(503).json({ 
+        message: 'Database connection error. Please try again later.',
+        error: 'Database disconnected'
+      });
+    }
     
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
@@ -1238,6 +1268,9 @@ const startServer = async () => {
     } catch (error) {
       console.log('⚠️ خطأ في التحقق من الأدمن:', error.message);
     }
+  } else {
+    console.log('⚠️ تحذير: الخادم يعمل بدون قاعدة بيانات');
+    console.log('⚠️ بعض الميزات قد لا تعمل بشكل صحيح');
   }
   
   app.listen(PORT, () => {
