@@ -84,6 +84,21 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Tabib IQ Backend API',
+    version: '1.0.0',
+    status: 'running',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/api/health',
+      admin: '/api/admin/init',
+      test: '/api/test-login'
+    }
+  });
+});
+
 // MongoDB Connection
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq';
 
@@ -102,11 +117,7 @@ const connectDB = async () => {
       maxPoolSize: 10,
       retryWrites: true,
       w: 'majority',
-      // إضافة خيارات DNS للبيئة المحلية
-      family: 4, // استخدام IPv4 فقط
-      // إضافة خيارات إضافية للشبكات المحلية
-      bufferCommands: false,
-      bufferMaxEntries: 0
+      family: 4 // استخدام IPv4 فقط
     };
     
     console.log('🔧 Using connection options:', options);
@@ -141,16 +152,7 @@ const connectDB = async () => {
           }
         },
         {
-          uri: 'mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq?retryWrites=true&w=majority&directConnection=true',
-          options: {
-            serverSelectionTimeoutMS: 3000,
-            socketTimeoutMS: 20000,
-            connectTimeoutMS: 8000,
-            family: 4
-          }
-        },
-        {
-          uri: 'mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq?retryWrites=true&w=majority&ssl=false',
+          uri: 'mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq?retryWrites=true&w=majority',
           options: {
             serverSelectionTimeoutMS: 3000,
             socketTimeoutMS: 20000,
@@ -1332,7 +1334,7 @@ const startServer = async () => {
     console.log('⚠️ بعض الميزات قد لا تعمل بشكل صحيح');
   }
   
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Server running on port ${PORT}`);
     console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
     console.log(`🌐 Test admin: http://localhost:${PORT}/api/test-admin`);
