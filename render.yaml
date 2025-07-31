@@ -11,7 +11,7 @@ services:
       - key: PORT
         value: 5000
       - key: MONGO_URI
-        value: mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq?retryWrites=true&w=majority&appName=Cluster0&authSource=admin&ssl=true
+        value: mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq?retryWrites=true&w=majority
       - key: JWT_SECRET
         value: tabib_iq_secret_key_2024
       - key: CORS_ORIGIN
