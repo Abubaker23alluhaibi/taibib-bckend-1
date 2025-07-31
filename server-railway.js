@@ -473,6 +473,68 @@ app.get('/api/admin/list', async (req, res) => {
   }
 });
 
+// Admin dashboard data - بيانات لوحة تحكم الأدمن
+app.get('/api/admin/dashboard', async (req, res) => {
+  try {
+    console.log('🔍 جلب بيانات لوحة تحكم الأدمن...');
+    
+    // جلب جميع المستخدمين
+    const users = await User.find({ user_type: 'patient' }).select('-password');
+    console.log('✅ تم جلب المستخدمين:', users.length);
+    
+    // جلب جميع الأطباء
+    const doctors = await User.find({ user_type: 'doctor' }).select('-password');
+    console.log('✅ تم جلب الأطباء:', doctors.length);
+    
+    // جلب جميع المواعيد
+    const appointments = await Appointment.find({}).populate('userId', 'name email').populate('doctorId', 'name specialty');
+    console.log('✅ تم جلب المواعيد:', appointments.length);
+    
+    // حساب الإحصائيات
+    const stats = {
+      totalUsers: users.length,
+      totalDoctors: doctors.length,
+      totalAppointments: appointments.length,
+      pendingAppointments: appointments.filter(a => a.status === 'pending').length,
+      confirmedAppointments: appointments.filter(a => a.status === 'confirmed').length,
+      cancelledAppointments: appointments.filter(a => a.status === 'cancelled').length,
+      topSpecialties: [],
+      monthlyStats: []
+    };
+    
+    // حساب التخصصات الأكثر طلباً
+    const specialtyCounts = {};
+    doctors.forEach(doctor => {
+      if (doctor.specialty) {
+        specialtyCounts[doctor.specialty] = (specialtyCounts[doctor.specialty] || 0) + 1;
+      }
+    });
+    
+    stats.topSpecialties = Object.entries(specialtyCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 5)
+      .map(([specialty, count]) => ({ specialty, count }));
+    
+    console.log('✅ تم حساب الإحصائيات بنجاح');
+    
+    res.json({
+      success: true,
+      users: users,
+      doctors: doctors,
+      appointments: appointments,
+      stats: stats
+    });
+    
+  } catch (error) {
+    console.error('❌ Admin dashboard error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'خطأ في جلب بيانات لوحة التحكم',
+      error: error.message 
+    });
+  }
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -1372,6 +1434,90 @@ app.put('/api/change-password/:userId', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: 'خطأ في الخادم' 
+    });
+  }
+});
+
+// Approve doctor - الموافقة على الطبيب
+app.put('/api/doctors/:doctorId/approve', async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    console.log('🔍 الموافقة على الطبيب:', doctorId);
+    
+    const doctor = await User.findById(doctorId);
+    
+    if (!doctor || doctor.user_type !== 'doctor') {
+      return res.status(404).json({ 
+        success: false,
+        message: 'الطبيب غير موجود' 
+      });
+    }
+    
+    doctor.approved = true;
+    doctor.disabled = false;
+    await doctor.save();
+    
+    console.log('✅ تم الموافقة على الطبيب:', doctor.name);
+    
+    res.json({
+      success: true,
+      message: 'تم الموافقة على الطبيب بنجاح',
+      doctor: {
+        _id: doctor._id,
+        name: doctor.name,
+        email: doctor.email,
+        specialty: doctor.specialty,
+        approved: doctor.approved
+      }
+    });
+  } catch (error) {
+    console.error('❌ Approve doctor error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'خطأ في الموافقة على الطبيب',
+      error: error.message 
+    });
+  }
+});
+
+// Reject doctor - رفض الطبيب
+app.put('/api/doctors/:doctorId/reject', async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    console.log('🔍 رفض الطبيب:', doctorId);
+    
+    const doctor = await User.findById(doctorId);
+    
+    if (!doctor || doctor.user_type !== 'doctor') {
+      return res.status(404).json({ 
+        success: false,
+        message: 'الطبيب غير موجود' 
+      });
+    }
+    
+    doctor.approved = false;
+    doctor.disabled = true;
+    await doctor.save();
+    
+    console.log('❌ تم رفض الطبيب:', doctor.name);
+    
+    res.json({
+      success: true,
+      message: 'تم رفض الطبيب بنجاح',
+      doctor: {
+        _id: doctor._id,
+        name: doctor.name,
+        email: doctor.email,
+        specialty: doctor.specialty,
+        approved: doctor.approved
+      }
+    });
+  } catch (error) {
+    console.error('❌ Reject doctor error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'خطأ في رفض الطبيب',
+      error: error.message 
     });
   }
 });
