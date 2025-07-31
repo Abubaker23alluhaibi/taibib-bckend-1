@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server-railway.js",
+    "start:local": "node server-local.js",
     "start:railway": "node server-railway.js",
     "start:complete": "node server-complete.js",
     "start:minimal": "node server-minimal.js",
@@ -19,6 +20,7 @@
     "start:smart": "node server-smart.js",
     "start:real-users": "node server-real-users.js",
     "dev": "nodemon server.js",
+    "dev:local": "nodemon server-local.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": ["medical", "consultation", "healthcare", "api"],

@@ -85,7 +85,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // MongoDB Connection
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq';
 
 const connectDB = async () => {
   try {
@@ -94,14 +94,19 @@ const connectDB = async () => {
     console.log('🔧 MONGO_URI length:', process.env.MONGO_URI ? process.env.MONGO_URI.length : 0);
     console.log('🔧 MONGO_URI preview:', process.env.MONGO_URI ? process.env.MONGO_URI.substring(0, 50) + '...' : 'Not defined');
     
-    // إضافة خيارات اتصال أفضل
+    // إضافة خيارات اتصال محسنة
     const options = {
-      serverSelectionTimeoutMS: 5000, // 5 ثواني
+      serverSelectionTimeoutMS: 10000, // 10 ثواني
       socketTimeoutMS: 45000, // 45 ثانية
-      connectTimeoutMS: 10000, // 10 ثواني
+      connectTimeoutMS: 15000, // 15 ثانية
       maxPoolSize: 10,
       retryWrites: true,
-      w: 'majority'
+      w: 'majority',
+      // إضافة خيارات DNS للبيئة المحلية
+      family: 4, // استخدام IPv4 فقط
+      // إضافة خيارات إضافية للشبكات المحلية
+      bufferCommands: false,
+      bufferMaxEntries: 0
     };
     
     console.log('🔧 Using connection options:', options);
@@ -118,6 +123,58 @@ const connectDB = async () => {
   } catch (error) {
     console.error('❌ MongoDB connection error:', error.message);
     console.error('❌ Error details:', error);
+    
+    // معالجة خاصة لخطأ DNS
+    if (error.code === 'ETIMEOUT' || error.message.includes('queryTxt') || error.message.includes('ENOTFOUND')) {
+      console.log('⚠️ خطأ DNS timeout - قد يكون بسبب الشبكة المحلية');
+      console.log('⚠️ في Railway سيعمل بشكل صحيح');
+      
+      // محاولة الاتصال برابط بديل مع خيارات مختلفة
+      const fallbackOptions = [
+        {
+          uri: 'mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq?retryWrites=true&w=majority',
+          options: {
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 30000,
+            connectTimeoutMS: 10000,
+            family: 4
+          }
+        },
+        {
+          uri: 'mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq?retryWrites=true&w=majority&directConnection=true',
+          options: {
+            serverSelectionTimeoutMS: 3000,
+            socketTimeoutMS: 20000,
+            connectTimeoutMS: 8000,
+            family: 4
+          }
+        },
+        {
+          uri: 'mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq?retryWrites=true&w=majority&ssl=false',
+          options: {
+            serverSelectionTimeoutMS: 3000,
+            socketTimeoutMS: 20000,
+            connectTimeoutMS: 8000,
+            family: 4
+          }
+        }
+      ];
+      
+      for (let i = 0; i < fallbackOptions.length; i++) {
+        try {
+          console.log(`🔄 محاولة الاتصال برابط بديل ${i + 1}/${fallbackOptions.length}...`);
+          await mongoose.connect(fallbackOptions[i].uri, fallbackOptions[i].options);
+          console.log(`✅ MongoDB connected with fallback URI ${i + 1}`);
+          return true;
+        } catch (fallbackError) {
+          console.error(`❌ Fallback connection ${i + 1} failed:`, fallbackError.message);
+          if (i === fallbackOptions.length - 1) {
+            console.error('❌ All fallback connections failed');
+          }
+        }
+      }
+    }
+    
     return false;
   }
 };
