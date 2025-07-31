@@ -223,17 +223,33 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   user_type: { type: String, enum: ['user', 'doctor', 'admin'], required: true },
   specialty: { type: String },
+  province: { type: String },
+  area: { type: String },
+  clinicLocation: { type: String },
   address: { type: String },
   experience: { type: String },
+  experienceYears: { type: Number },
   education: { type: String },
   city: { type: String },
+  about: { type: String },
+  image: { type: String },
+  idFront: { type: String },
+  idBack: { type: String },
+  syndicateFront: { type: String },
+  syndicateBack: { type: String },
   workTimes: [{
     day: String,
     from: String,
     to: String
   }],
+  availableDays: [String],
+  status: { type: String, default: 'pending' },
+  isVerified: { type: Boolean, default: false },
+  approved: { type: Boolean, default: false },
+  disabled: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
   active: { type: Boolean, default: true },
+  isAvailable: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 }, { strict: false });
 
@@ -818,27 +834,26 @@ app.get('/api/doctors', async (req, res) => {
   try {
     console.log('🔍 جلب الأطباء...');
     
-    // جلب جميع الأطباء مع جميع المعلومات
+    // جلب جميع الأطباء من جدول User
     const allDoctors = await User.find({ 
       user_type: 'doctor'
-    }).select('name email phone user_type specialty address experience education city workTimes availableDays active isActive disabled createdAt status isVerified isAvailable'); // تحديد الحقول المطلوبة
+    }).select('name email phone user_type specialty province area clinicLocation about experienceYears workTimes image idFront idBack syndicateFront syndicateBack status isVerified isAvailable active disabled approved createdAt');
     
     console.log(`📊 إجمالي الأطباء: ${allDoctors.length}`);
     
-    // فلترة الأطباء النشطين (مع مرونة في الحقول)
+    // فلترة الأطباء النشطين
     const activeDoctors = allDoctors.filter(doctor => {
       // إذا كان الطبيب معطل صراحةً
       if (doctor.disabled === true) return false;
       
       // إذا كان الطبيب غير نشط صراحةً
       if (doctor.active === false) return false;
-      if (doctor.isActive === false) return false;
       
       // إذا كان الطبيب محذوف
       if (doctor.deleted === true) return false;
       
       // للأطباء الحقيقيين، تحقق من الحالة
-      if (doctor.status && doctor.status !== 'approved') return false;
+      if (doctor.status && doctor.status !== 'approved' && doctor.approved !== true) return false;
       
       // في جميع الحالات الأخرى، اعتباره نشط
       return true;
@@ -850,8 +865,10 @@ app.get('/api/doctors', async (req, res) => {
       email: d.email, 
       specialty: d.specialty,
       active: d.active,
-      isActive: d.isActive,
-      disabled: d.disabled
+      disabled: d.disabled,
+      status: d.status,
+      approved: d.approved,
+      workTimes: d.workTimes
     })));
     
     res.json(activeDoctors);
@@ -866,9 +883,9 @@ app.get('/api/check-doctors', async (req, res) => {
   try {
     console.log('🔍 فحص الأطباء المسجلين...');
     
-    const allUsers = await User.find({}).select('name email user_type active isActive specialty');
+    const allUsers = await User.find({}).select('name email user_type active isActive specialty status approved');
     const doctors = allUsers.filter(u => u.user_type === 'doctor');
-    const activeDoctors = doctors.filter(d => d.active && d.isActive);
+    const activeDoctors = doctors.filter(d => d.active && d.isActive && (d.status === 'approved' || d.approved === true));
     
     console.log(`📊 إجمالي المستخدمين: ${allUsers.length}`);
     console.log(`👨‍⚕️ إجمالي الأطباء: ${doctors.length}`);
@@ -891,7 +908,7 @@ app.get('/api/check-users', async (req, res) => {
   try {
     console.log('🔍 فحص جميع المستخدمين...');
     
-    const allUsers = await User.find({}).select('name email user_type active isActive specialty phone createdAt');
+    const allUsers = await User.find({}).select('name email user_type active isActive specialty phone status approved createdAt');
     
     // تجميع المستخدمين حسب النوع
     const regularUsers = allUsers.filter(u => u.user_type === 'user');
@@ -899,8 +916,8 @@ app.get('/api/check-users', async (req, res) => {
     const admins = allUsers.filter(u => u.user_type === 'admin');
     
     // تجميع الأطباء حسب الحالة
-    const activeDoctors = doctors.filter(d => d.active && d.isActive);
-    const inactiveDoctors = doctors.filter(d => !d.active || !d.isActive);
+    const activeDoctors = doctors.filter(d => d.active && d.isActive && (d.status === 'approved' || d.approved === true));
+    const inactiveDoctors = doctors.filter(d => !d.active || !d.isActive || (d.status !== 'approved' && d.approved !== true));
     
     console.log(`📊 إجمالي المستخدمين: ${allUsers.length}`);
     console.log(`👤 المستخدمين العاديين: ${regularUsers.length}`);
@@ -923,6 +940,190 @@ app.get('/api/check-users', async (req, res) => {
   } catch (error) {
     console.error('❌ Check users error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Convert old doctor to new system - تحويل الطبيب القديم للنظام الجديد
+app.post('/api/convert-doctor/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log('🔍 تحويل الطبيب للنظام الجديد:', userId);
+    
+    // البحث عن الطبيب في جدول User
+    const oldDoctor = await User.findById(userId);
+    if (!oldDoctor || oldDoctor.user_type !== 'doctor') {
+      return res.status(404).json({
+        success: false,
+        message: 'الطبيب غير موجود في النظام القديم'
+      });
+    }
+    
+    // التحقق من عدم وجود الطبيب في جدول Doctor
+    const existingDoctor = await Doctor.findOne({ userId: userId });
+    if (existingDoctor) {
+      return res.status(400).json({
+        success: false,
+        message: 'الطبيب محول مسبقاً للنظام الجديد'
+      });
+    }
+    
+    // إنشاء ملف الطبيب الجديد
+    const newDoctorData = {
+      userId: oldDoctor._id,
+      email: oldDoctor.email,
+      name: oldDoctor.name,
+      phone: oldDoctor.phone,
+      specialty: oldDoctor.specialty || 'غير محدد',
+      province: oldDoctor.province || 'غير محدد',
+      area: oldDoctor.area || '',
+      clinicLocation: oldDoctor.clinicLocation || '',
+      about: oldDoctor.about || '',
+      experienceYears: oldDoctor.experienceYears || '',
+      workTimes: oldDoctor.workTimes || [],
+      status: oldDoctor.status || 'pending',
+      isVerified: oldDoctor.isVerified || false,
+      isAvailable: oldDoctor.isAvailable !== false,
+      active: oldDoctor.active !== false,
+      disabled: oldDoctor.disabled || false,
+      is_featured: oldDoctor.is_featured || false,
+      user_type: 'doctor',
+      rating: oldDoctor.rating || 0,
+      totalRatings: oldDoctor.totalRatings || 0,
+      image: oldDoctor.image || '',
+      idFront: oldDoctor.idFront || '',
+      idBack: oldDoctor.idBack || '',
+      syndicateFront: oldDoctor.syndicateFront || '',
+      syndicateBack: oldDoctor.syndicateBack || ''
+    };
+    
+    const newDoctor = new Doctor(newDoctorData);
+    await newDoctor.save();
+    
+    console.log('✅ تم تحويل الطبيب بنجاح:', oldDoctor.name);
+    
+    res.json({
+      success: true,
+      message: 'تم تحويل الطبيب للنظام الجديد بنجاح',
+      oldDoctor: {
+        _id: oldDoctor._id,
+        name: oldDoctor.name,
+        email: oldDoctor.email
+      },
+      newDoctor: {
+        _id: newDoctor._id,
+        name: newDoctor.name,
+        email: newDoctor.email,
+        specialty: newDoctor.specialty
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Convert doctor error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في تحويل الطبيب',
+      error: error.message
+    });
+  }
+});
+
+// Convert all old doctors to new system - تحويل جميع الأطباء القدامى للنظام الجديد
+app.post('/api/convert-all-doctors', async (req, res) => {
+  try {
+    console.log('🔍 تحويل جميع الأطباء القدامى للنظام الجديد...');
+    
+    // جلب جميع الأطباء من جدول User
+    const oldDoctors = await User.find({ user_type: 'doctor' });
+    console.log(`📊 إجمالي الأطباء القدامى: ${oldDoctors.length}`);
+    
+    const convertedDoctors = [];
+    const skippedDoctors = [];
+    
+    for (const oldDoctor of oldDoctors) {
+      try {
+        // التحقق من عدم وجود الطبيب في جدول Doctor
+        const existingDoctor = await Doctor.findOne({ userId: oldDoctor._id });
+        if (existingDoctor) {
+          skippedDoctors.push({
+            _id: oldDoctor._id,
+            name: oldDoctor.name,
+            email: oldDoctor.email,
+            reason: 'محول مسبقاً'
+          });
+          continue;
+        }
+        
+        // إنشاء ملف الطبيب الجديد
+        const newDoctorData = {
+          userId: oldDoctor._id,
+          email: oldDoctor.email,
+          name: oldDoctor.name,
+          phone: oldDoctor.phone,
+          specialty: oldDoctor.specialty || 'غير محدد',
+          province: oldDoctor.province || 'غير محدد',
+          area: oldDoctor.area || '',
+          clinicLocation: oldDoctor.clinicLocation || '',
+          about: oldDoctor.about || '',
+          experienceYears: oldDoctor.experienceYears || '',
+          workTimes: oldDoctor.workTimes || [],
+          status: oldDoctor.status || 'pending',
+          isVerified: oldDoctor.isVerified || false,
+          isAvailable: oldDoctor.isAvailable !== false,
+          active: oldDoctor.active !== false,
+          disabled: oldDoctor.disabled || false,
+          is_featured: oldDoctor.is_featured || false,
+          user_type: 'doctor',
+          rating: oldDoctor.rating || 0,
+          totalRatings: oldDoctor.totalRatings || 0,
+          image: oldDoctor.image || '',
+          idFront: oldDoctor.idFront || '',
+          idBack: oldDoctor.idBack || '',
+          syndicateFront: oldDoctor.syndicateFront || '',
+          syndicateBack: oldDoctor.syndicateBack || ''
+        };
+        
+        const newDoctor = new Doctor(newDoctorData);
+        await newDoctor.save();
+        
+        convertedDoctors.push({
+          oldId: oldDoctor._id,
+          newId: newDoctor._id,
+          name: oldDoctor.name,
+          email: oldDoctor.email
+        });
+        
+        console.log(`✅ تم تحويل الطبيب: ${oldDoctor.name}`);
+        
+      } catch (error) {
+        console.error(`❌ خطأ في تحويل الطبيب ${oldDoctor.name}:`, error.message);
+        skippedDoctors.push({
+          _id: oldDoctor._id,
+          name: oldDoctor.name,
+          email: oldDoctor.email,
+          reason: error.message
+        });
+      }
+    }
+    
+    console.log(`✅ تم تحويل ${convertedDoctors.length} طبيب بنجاح`);
+    console.log(`⚠️ تم تخطي ${skippedDoctors.length} طبيب`);
+    
+    res.json({
+      success: true,
+      message: `تم تحويل ${convertedDoctors.length} طبيب بنجاح`,
+      convertedCount: convertedDoctors.length,
+      skippedCount: skippedDoctors.length,
+      convertedDoctors: convertedDoctors,
+      skippedDoctors: skippedDoctors
+    });
+    
+  } catch (error) {
+    console.error('❌ Convert all doctors error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في تحويل الأطباء',
+      error: error.message
+    });
   }
 });
 
@@ -1370,9 +1571,9 @@ app.get('/api/doctors/:doctorId', async (req, res) => {
     const { doctorId } = req.params;
     console.log('🔍 جلب تفاصيل الطبيب:', doctorId);
     
-    const doctor = await User.findById(doctorId).select('-password');
+    const doctor = await Doctor.findById(doctorId);
     
-    if (!doctor || doctor.user_type !== 'doctor') {
+    if (!doctor) {
       return res.status(404).json({ message: 'الطبيب غير موجود' });
     }
     
@@ -1493,17 +1694,19 @@ app.put('/api/doctors/:doctorId/approve', async (req, res) => {
     const { doctorId } = req.params;
     console.log('🔍 الموافقة على الطبيب:', doctorId);
     
-    const doctor = await User.findById(doctorId);
+    const doctor = await Doctor.findById(doctorId);
     
-    if (!doctor || doctor.user_type !== 'doctor') {
+    if (!doctor) {
       return res.status(404).json({ 
         success: false,
         message: 'الطبيب غير موجود' 
       });
     }
     
-    doctor.approved = true;
+    doctor.status = 'approved';
+    doctor.isVerified = true;
     doctor.disabled = false;
+    doctor.active = true;
     await doctor.save();
     
     console.log('✅ تم الموافقة على الطبيب:', doctor.name);
@@ -1516,7 +1719,7 @@ app.put('/api/doctors/:doctorId/approve', async (req, res) => {
         name: doctor.name,
         email: doctor.email,
         specialty: doctor.specialty,
-        approved: doctor.approved
+        status: doctor.status
       }
     });
   } catch (error) {
@@ -1535,17 +1738,19 @@ app.put('/api/doctors/:doctorId/reject', async (req, res) => {
     const { doctorId } = req.params;
     console.log('🔍 رفض الطبيب:', doctorId);
     
-    const doctor = await User.findById(doctorId);
+    const doctor = await Doctor.findById(doctorId);
     
-    if (!doctor || doctor.user_type !== 'doctor') {
+    if (!doctor) {
       return res.status(404).json({ 
         success: false,
         message: 'الطبيب غير موجود' 
       });
     }
     
-    doctor.approved = false;
+    doctor.status = 'rejected';
+    doctor.isVerified = false;
     doctor.disabled = true;
+    doctor.active = false;
     await doctor.save();
     
     console.log('❌ تم رفض الطبيب:', doctor.name);
@@ -1558,7 +1763,7 @@ app.put('/api/doctors/:doctorId/reject', async (req, res) => {
         name: doctor.name,
         email: doctor.email,
         specialty: doctor.specialty,
-        approved: doctor.approved
+        status: doctor.status
       }
     });
   } catch (error) {
@@ -1614,9 +1819,9 @@ app.delete('/api/doctors/:doctorId', async (req, res) => {
     const { doctorId } = req.params;
     console.log('🔍 حذف الطبيب:', doctorId);
     
-    const doctor = await User.findById(doctorId);
+    const doctor = await Doctor.findById(doctorId);
     
-    if (!doctor || doctor.user_type !== 'doctor') {
+    if (!doctor) {
       return res.status(404).json({ 
         success: false,
         message: 'الطبيب غير موجود' 
@@ -1626,8 +1831,13 @@ app.delete('/api/doctors/:doctorId', async (req, res) => {
     // حذف جميع مواعيد الطبيب
     await Appointment.deleteMany({ doctorId: doctorId });
     
+    // حذف المستخدم المرتبط بالطبيب
+    if (doctor.userId) {
+      await User.findByIdAndDelete(doctor.userId);
+    }
+    
     // حذف الطبيب
-    await User.findByIdAndDelete(doctorId);
+    await Doctor.findByIdAndDelete(doctorId);
     
     console.log('✅ تم حذف الطبيب:', doctor.name);
     
@@ -1699,6 +1909,8 @@ app.post('/api/doctors', upload.fields([
 ]), async (req, res) => {
   try {
     console.log('📤 استلام طلب تسجيل طبيب جديد');
+    console.log('📋 البيانات المستلمة:', req.body);
+    console.log('📁 الملفات المستلمة:', req.files);
     
     const {
       name,
@@ -1735,65 +1947,95 @@ app.post('/api/doctors', upload.fields([
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
-    // إنشاء المستخدم
+    // إنشاء المستخدم الأساسي
     const user = new User({
       name,
       email,
       phone,
       password: hashedPassword,
       user_type: 'doctor',
-      active: true
+      active: true,
+      isActive: true
     });
     
     await user.save();
     console.log('✅ تم إنشاء المستخدم للطبيب:', user._id);
     
-    // إنشاء ملف الطبيب
+    // إنشاء ملف الطبيب منفصل (مثل النظام القديم)
     const doctorData = {
       userId: user._id,
-      specialty,
-      province,
+      email: user.email,
+      name: user.name,
+      phone: user.phone,
+      specialty: specialty,
+      province: province,
       area: area || '',
       clinicLocation: clinicLocation || '',
       about: about || '',
       experienceYears: experienceYears || '',
       workTimes: workTimes ? JSON.parse(workTimes) : [],
-      status: 'pending', // يحتاج موافقة الأدمن
+      status: 'pending',
       isVerified: false,
-      active: false
+      isAvailable: true,
+      active: true,
+      disabled: false,
+      is_featured: false,
+      user_type: 'doctor',
+      rating: 0,
+      totalRatings: 0
     };
     
     // إضافة الصور والوثائق إذا كانت موجودة
     if (req.files) {
       if (req.files.image) {
-        doctorData.profileImage = `/uploads/${req.files.image[0].filename}`;
+        doctorData.image = `/uploads/${req.files.image[0].filename}`;
+        console.log('✅ تم حفظ صورة الملف الشخصي:', doctorData.image);
       }
       if (req.files.idFront) {
         doctorData.idFront = `/uploads/${req.files.idFront[0].filename}`;
+        console.log('✅ تم حفظ صورة الهوية الأمامية:', doctorData.idFront);
       }
       if (req.files.idBack) {
         doctorData.idBack = `/uploads/${req.files.idBack[0].filename}`;
+        console.log('✅ تم حفظ صورة الهوية الخلفية:', doctorData.idBack);
       }
       if (req.files.syndicateFront) {
         doctorData.syndicateFront = `/uploads/${req.files.syndicateFront[0].filename}`;
+        console.log('✅ تم حفظ صورة النقابة الأمامية:', doctorData.syndicateFront);
       }
       if (req.files.syndicateBack) {
         doctorData.syndicateBack = `/uploads/${req.files.syndicateBack[0].filename}`;
+        console.log('✅ تم حفظ صورة النقابة الخلفية:', doctorData.syndicateBack);
       }
     }
     
+    console.log('📋 مواعيد العمل:', doctorData.workTimes);
+    
+    // إنشاء ملف الطبيب
     const doctor = new Doctor(doctorData);
     await doctor.save();
     
-    console.log('✅ تم إنشاء ملف الطبيب:', doctor._id);
+    console.log('✅ تم إنشاء ملف الطبيب بنجاح:', doctor._id);
+    console.log('📋 بيانات الطبيب المحفوظة:', {
+      name: doctor.name,
+      email: doctor.email,
+      specialty: doctor.specialty,
+      workTimes: doctor.workTimes,
+      image: doctor.image,
+      idFront: doctor.idFront,
+      idBack: doctor.idBack,
+      syndicateFront: doctor.syndicateFront,
+      syndicateBack: doctor.syndicateBack
+    });
     
     res.status(201).json({
       success: true,
       message: 'تم تسجيل الطبيب بنجاح. سيتم مراجعة طلبك من قبل الإدارة.',
       doctor: {
         id: doctor._id,
-        name: user.name,
-        email: user.email,
+        userId: user._id,
+        name: doctor.name,
+        email: doctor.email,
         specialty,
         status: 'pending'
       }
