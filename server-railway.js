@@ -80,11 +80,21 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://abubaker:Baker123@clus
 
 const connectDB = async () => {
   try {
+    console.log('🔍 محاولة الاتصال بقاعدة البيانات...');
+    console.log('🔧 MONGO_URI exists:', !!process.env.MONGO_URI);
+    
     await mongoose.connect(MONGO_URI);
     console.log('✅ MongoDB connected successfully');
+    
+    // اختبار الاتصال
+    const adminCount = await Admin.countDocuments();
+    const userCount = await User.countDocuments();
+    console.log(`📊 قاعدة البيانات تحتوي على ${adminCount} أدمن و ${userCount} مستخدم`);
+    
     return true;
   } catch (error) {
     console.error('❌ MongoDB connection error:', error.message);
+    console.error('❌ Error details:', error);
     return false;
   }
 };
@@ -145,16 +155,29 @@ const Appointment = mongoose.model('Appointment', appointmentSchema);
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  const dbState = mongoose.connection.readyState;
+  
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
-    database: dbStatus,
+    database: {
+      status: dbStatus,
+      state: dbState,
+      readyState: mongoose.connection.readyState
+    },
+    environment_variables: {
+      JWT_SECRET: process.env.JWT_SECRET ? 'defined' : 'not defined',
+      MONGO_URI: process.env.MONGO_URI ? 'defined' : 'not defined',
+      NODE_ENV: process.env.NODE_ENV || 'development',
+      PORT: process.env.PORT || 5000
+    },
     cors: 'enabled',
     models: {
       user: User ? 'initialized' : 'not initialized',
-      admin: Admin ? 'initialized' : 'not initialized'
+      admin: Admin ? 'initialized' : 'not initialized',
+      appointment: Appointment ? 'initialized' : 'not initialized'
     }
   });
 });
@@ -350,6 +373,8 @@ app.post('/api/auth/login', async (req, res) => {
     const { email, password, loginType } = req.body;
     
     console.log('🔍 Login attempt:', { email, loginType });
+    console.log('🔧 JWT_SECRET exists:', !!process.env.JWT_SECRET);
+    console.log('🔧 MONGO_URI exists:', !!process.env.MONGO_URI);
     
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
@@ -360,19 +385,27 @@ app.post('/api/auth/login', async (req, res) => {
     
     // البحث في الأدمن أولاً إذا كان loginType = admin
     if (loginType === 'admin') {
-      user = await Admin.findOne({ email });
-      if (user) {
-        userType = 'admin';
-        console.log('✅ تم العثور على الأدمن:', user.email);
+      try {
+        user = await Admin.findOne({ email });
+        if (user) {
+          userType = 'admin';
+          console.log('✅ تم العثور على الأدمن:', user.email);
+        }
+      } catch (adminError) {
+        console.error('❌ خطأ في البحث عن الأدمن:', adminError);
       }
     }
     
     // إذا لم يتم العثور على الأدمن، ابحث في المستخدمين العاديين
     if (!user) {
-      user = await User.findOne({ email });
-      if (user) {
-        userType = user.user_type || user.role;
-        console.log('✅ تم العثور على المستخدم:', user.email, 'نوع:', userType);
+      try {
+        user = await User.findOne({ email });
+        if (user) {
+          userType = user.user_type || user.role;
+          console.log('✅ تم العثور على المستخدم:', user.email, 'نوع:', userType);
+        }
+      } catch (userError) {
+        console.error('❌ خطأ في البحث عن المستخدم:', userError);
       }
     }
     
@@ -396,16 +429,21 @@ app.post('/api/auth/login', async (req, res) => {
     
     console.log('✅ كلمة المرور صحيحة للمستخدم:', email);
     
-    // Generate JWT token
+    // Generate JWT token with fallback secret
+    const jwtSecret = process.env.JWT_SECRET || 'tabib_iq_fallback_secret_key_2024';
+    console.log('🔑 Using JWT secret:', jwtSecret ? 'defined' : 'fallback');
+    
     const token = jwt.sign(
       { 
         userId: user._id, 
         email: user.email, 
         user_type: userType 
       },
-      process.env.JWT_SECRET || 'your-secret-key',
+      jwtSecret,
       { expiresIn: '7d' }
     );
+    
+    console.log('✅ تم إنشاء التوكن بنجاح');
     
     res.json({
       success: true,
@@ -423,7 +461,11 @@ app.post('/api/auth/login', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Login error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ 
+      message: 'Server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 });
 
@@ -468,6 +510,70 @@ app.post('/api/auth/register', async (req, res) => {
   } catch (error) {
     console.error('❌ Register error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Create test user endpoint - إنشاء مستخدم تجريبي
+app.post('/api/create-test-user', async (req, res) => {
+  try {
+    console.log('🔍 إنشاء مستخدم تجريبي...');
+    
+    const testUserData = {
+      name: 'مستخدم تجريبي',
+      email: 'test@tabib-iq.com',
+      phone: '07801234567',
+      password: await bcrypt.hash('123456', 10),
+      user_type: 'user',
+      active: true,
+      isActive: true
+    };
+    
+    // التحقق من عدم وجود المستخدم مسبقاً
+    const existingUser = await User.findOne({ email: testUserData.email });
+    if (existingUser) {
+      return res.json({
+        success: true,
+        message: 'المستخدم التجريبي موجود بالفعل',
+        user: {
+          _id: existingUser._id,
+          name: existingUser.name,
+          email: existingUser.email,
+          user_type: existingUser.user_type
+        },
+        credentials: {
+          email: 'test@tabib-iq.com',
+          password: '123456'
+        }
+      });
+    }
+    
+    const testUser = new User(testUserData);
+    await testUser.save();
+    
+    console.log('✅ تم إنشاء المستخدم التجريبي:', testUser.email);
+    
+    res.status(201).json({
+      success: true,
+      message: 'تم إنشاء المستخدم التجريبي بنجاح',
+      user: {
+        _id: testUser._id,
+        name: testUser.name,
+        email: testUser.email,
+        user_type: testUser.user_type
+      },
+      credentials: {
+        email: 'test@tabib-iq.com',
+        password: '123456'
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Create test user error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'خطأ في الخادم',
+      error: error.message 
+    });
   }
 });
 
@@ -581,6 +687,56 @@ app.get('/api/check-users', async (req, res) => {
   } catch (error) {
     console.error('❌ Check users error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Test login endpoint - اختبار تسجيل الدخول
+app.post('/api/test-login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    console.log('🧪 اختبار تسجيل الدخول:', { email });
+    
+    // البحث في المستخدمين
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'المستخدم غير موجود',
+        test: true
+      });
+    }
+    
+    // اختبار كلمة المرور
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'كلمة المرور غير صحيحة',
+        test: true
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'اختبار تسجيل الدخول نجح',
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        user_type: user.user_type
+      },
+      test: true
+    });
+    
+  } catch (error) {
+    console.error('❌ Test login error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'خطأ في الخادم',
+      error: error.message,
+      test: true
+    });
   }
 });
 
@@ -1039,6 +1195,11 @@ const startServer = async () => {
   console.log('📁 Current directory:', process.cwd());
   console.log('🔧 Node version:', process.version);
   console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
+  console.log('🔧 Environment variables:');
+  console.log('  - JWT_SECRET:', process.env.JWT_SECRET ? '✅ Defined' : '❌ Not defined');
+  console.log('  - MONGO_URI:', process.env.MONGO_URI ? '✅ Defined' : '❌ Not defined');
+  console.log('  - PORT:', process.env.PORT || 5000);
+  console.log('  - NODE_ENV:', process.env.NODE_ENV || 'development');
   
   const dbConnected = await connectDB();
   
@@ -1085,8 +1246,11 @@ const startServer = async () => {
     console.log(`🌐 Test admin: http://localhost:${PORT}/api/test-admin`);
     console.log(`🌐 Admin init: http://localhost:${PORT}/api/admin/init`);
     console.log(`🌐 Admin list: http://localhost:${PORT}/api/admin/list`);
+    console.log(`🌐 Create test user: http://localhost:${PORT}/api/create-test-user`);
+    console.log(`🌐 Test login: http://localhost:${PORT}/api/test-login`);
     console.log(`📊 Database: ${dbConnected ? 'Connected' : 'Disconnected'}`);
     console.log(`🔑 Default Admin: admin@tabib-iq.com / Admin123!@#`);
+    console.log(`🧪 Test User: test@tabib-iq.com / 123456`);
   });
 };
 
