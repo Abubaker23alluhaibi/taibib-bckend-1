@@ -1522,6 +1522,80 @@ app.put('/api/doctors/:doctorId/reject', async (req, res) => {
   }
 });
 
+// Delete user - حذف المستخدم
+app.delete('/api/users/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log('🔍 حذف المستخدم:', userId);
+    
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'المستخدم غير موجود' 
+      });
+    }
+    
+    // حذف جميع مواعيد المستخدم
+    await Appointment.deleteMany({ userId: userId });
+    
+    // حذف المستخدم
+    await User.findByIdAndDelete(userId);
+    
+    console.log('✅ تم حذف المستخدم:', user.name);
+    
+    res.json({
+      success: true,
+      message: 'تم حذف المستخدم بنجاح'
+    });
+  } catch (error) {
+    console.error('❌ Delete user error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'خطأ في حذف المستخدم',
+      error: error.message 
+    });
+  }
+});
+
+// Delete doctor - حذف الطبيب
+app.delete('/api/doctors/:doctorId', async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    console.log('🔍 حذف الطبيب:', doctorId);
+    
+    const doctor = await User.findById(doctorId);
+    
+    if (!doctor || doctor.user_type !== 'doctor') {
+      return res.status(404).json({ 
+        success: false,
+        message: 'الطبيب غير موجود' 
+      });
+    }
+    
+    // حذف جميع مواعيد الطبيب
+    await Appointment.deleteMany({ doctorId: doctorId });
+    
+    // حذف الطبيب
+    await User.findByIdAndDelete(doctorId);
+    
+    console.log('✅ تم حذف الطبيب:', doctor.name);
+    
+    res.json({
+      success: true,
+      message: 'تم حذف الطبيب بنجاح'
+    });
+  } catch (error) {
+    console.error('❌ Delete doctor error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'خطأ في حذف الطبيب',
+      error: error.message 
+    });
+  }
+});
+
 // Upload profile image endpoint - رفع الصورة الشخصية
 app.post('/api/upload-profile-image', upload.single('profileImage'), async (req, res) => {
   try {
