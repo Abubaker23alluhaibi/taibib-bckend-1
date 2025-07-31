@@ -85,7 +85,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // MongoDB Connection
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/tabibiq?retryWrites=true&w=majority';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://abubaker:Baker123@cluster0.kamrxrt.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 
 const connectDB = async () => {
   try {
@@ -103,6 +103,8 @@ const connectDB = async () => {
       retryWrites: true,
       w: 'majority'
     };
+    
+    console.log('🔧 Using connection options:', options);
     
     await mongoose.connect(MONGO_URI, options);
     console.log('✅ MongoDB connected successfully');
