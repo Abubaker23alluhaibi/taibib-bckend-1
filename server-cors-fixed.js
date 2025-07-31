@@ -175,6 +175,30 @@ const Admin = mongoose.model('Admin', adminSchema);
 const Appointment = mongoose.model('Appointment', appointmentSchema);
 const Doctor = mongoose.model('Doctor', doctorSchema);
 
+// Health Center Schema
+const healthCenterSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  phone: { type: String, required: true },
+  password: { type: String, required: true },
+  address: { type: String, required: true },
+  province: { type: String, required: true },
+  area: { type: String, default: '' },
+  description: { type: String, default: '' },
+  services: [String],
+  image: { type: String, default: '' },
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  isVerified: { type: Boolean, default: false },
+  active: { type: Boolean, default: true },
+  disabled: { type: Boolean, default: false },
+  is_featured: { type: Boolean, default: false },
+  rating: { type: Number, default: 0 },
+  totalRatings: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const HealthCenter = mongoose.model('HealthCenter', healthCenterSchema);
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   console.log('🔍 Health check request received from:', req.headers.origin);
@@ -253,6 +277,7 @@ app.get('/api/admin/dashboard', async (req, res) => {
   try {
     console.log('📊 جلب بيانات لوحة التحكم...');
     
+    // Get counts
     const [users, doctors, appointments] = await Promise.all([
       User.find({ user_type: 'patient' }).countDocuments(),
       Doctor.find({}).countDocuments(),
@@ -261,6 +286,15 @@ app.get('/api/admin/dashboard', async (req, res) => {
 
     const pendingDoctors = await Doctor.find({ status: 'pending' }).countDocuments();
     const approvedDoctors = await Doctor.find({ status: 'approved' }).countDocuments();
+    const featuredDoctors = await Doctor.find({ is_featured: true }).countDocuments();
+    const healthCenters = await HealthCenter.find({}).countDocuments();
+    const pendingHealthCenters = await HealthCenter.find({ status: 'pending' }).countDocuments();
+    const approvedHealthCenters = await HealthCenter.find({ status: 'approved' }).countDocuments();
+
+    console.log('📊 البيانات المجمعة:', { 
+      users, doctors, appointments, pendingDoctors, approvedDoctors, featuredDoctors,
+      healthCenters, pendingHealthCenters, approvedHealthCenters
+    });
 
     res.json({
       success: true,
@@ -269,11 +303,226 @@ app.get('/api/admin/dashboard', async (req, res) => {
         doctors,
         appointments,
         pendingDoctors,
-        approvedDoctors
+        approvedDoctors,
+        featuredDoctors,
+        healthCenters,
+        pendingHealthCenters,
+        approvedHealthCenters
       }
     });
   } catch (error) {
     console.error('❌ خطأ في جلب بيانات لوحة التحكم:', error);
+    res.status(500).json({ success: false, message: 'خطأ في الخادم' });
+  }
+});
+
+// Debug endpoint to check database data
+app.get('/api/debug/data', async (req, res) => {
+  try {
+    console.log('🔍 فحص البيانات في قاعدة البيانات...');
+    
+    const allUsers = await User.find({});
+    const allDoctors = await Doctor.find({});
+    const allAdmins = await Admin.find({});
+    const allAppointments = await Appointment.find({});
+    
+    console.log('📊 إجمالي البيانات:');
+    console.log('- المستخدمين:', allUsers.length);
+    console.log('- الأطباء:', allDoctors.length);
+    console.log('- الأدمن:', allAdmins.length);
+    console.log('- المواعيد:', allAppointments.length);
+    
+    res.json({
+      success: true,
+      data: {
+        users: allUsers.length,
+        doctors: allDoctors.length,
+        admins: allAdmins.length,
+        appointments: allAppointments.length,
+        userDetails: allUsers.map(u => ({ id: u._id, name: u.name, email: u.email, user_type: u.user_type })),
+        doctorDetails: allDoctors.map(d => ({ id: d._id, name: d.name, email: d.email, status: d.status })),
+        adminDetails: allAdmins.map(a => ({ id: a._id, name: a.name, email: a.email }))
+      }
+    });
+  } catch (error) {
+    console.error('❌ خطأ في فحص البيانات:', error);
+    res.status(500).json({ success: false, message: 'خطأ في الخادم' });
+  }
+});
+
+// Create test data endpoint
+app.post('/api/create-test-data', async (req, res) => {
+  try {
+    console.log('📝 إنشاء بيانات تجريبية...');
+    
+    // Create test users
+    const testUsers = [
+      { name: 'أحمد محمد', email: 'ahmed@test.com', phone: '07801234567', password: '123456', user_type: 'patient' },
+      { name: 'فاطمة علي', email: 'fatima@test.com', phone: '07801234568', password: '123456', user_type: 'patient' },
+      { name: 'محمد حسن', email: 'mohammed@test.com', phone: '07801234569', password: '123456', user_type: 'patient' }
+    ];
+    
+    for (const userData of testUsers) {
+      const existingUser = await User.findOne({ email: userData.email });
+      if (!existingUser) {
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(userData.password, salt);
+        const user = new User({ ...userData, password: hashedPassword });
+        await user.save();
+        console.log('✅ تم إنشاء مستخدم:', userData.name);
+      }
+    }
+    
+    // Create test doctors
+    const testDoctors = [
+      {
+        name: 'د. سارة أحمد',
+        email: 'sara@doctor.com',
+        phone: '07801234570',
+        specialty: 'طب عام',
+        province: 'بغداد',
+        area: 'الكرادة',
+        status: 'pending',
+        isVerified: false,
+        active: true,
+        disabled: false,
+        is_featured: false,
+        user_type: 'doctor',
+        rating: 0,
+        totalRatings: 0
+      },
+      {
+        name: 'د. علي محمد',
+        email: 'ali@doctor.com',
+        phone: '07801234571',
+        specialty: 'طب أسنان',
+        province: 'البصرة',
+        area: 'المركز',
+        status: 'approved',
+        isVerified: true,
+        active: true,
+        disabled: false,
+        is_featured: true,
+        user_type: 'doctor',
+        rating: 4.5,
+        totalRatings: 10
+      },
+      {
+        name: 'د. نورا كريم',
+        email: 'nora@doctor.com',
+        phone: '07801234572',
+        specialty: 'طب الأطفال',
+        province: 'أربيل',
+        area: 'المركز',
+        status: 'approved',
+        isVerified: true,
+        active: true,
+        disabled: false,
+        is_featured: false,
+        user_type: 'doctor',
+        rating: 4.8,
+        totalRatings: 15
+      }
+    ];
+    
+    for (const doctorData of testDoctors) {
+      const existingDoctor = await Doctor.findOne({ email: doctorData.email });
+      if (!existingDoctor) {
+        const doctor = new Doctor(doctorData);
+        await doctor.save();
+        console.log('✅ تم إنشاء طبيب:', doctorData.name);
+      }
+    }
+    
+    // Create test appointments
+    const testAppointments = [
+      {
+        userId: (await User.findOne({ email: 'ahmed@test.com' }))._id,
+        doctorId: (await Doctor.findOne({ email: 'ali@doctor.com' }))._id,
+        date: new Date(Date.now() + 86400000), // Tomorrow
+        time: '10:00',
+        status: 'confirmed',
+        notes: 'موعد تجريبي'
+      },
+      {
+        userId: (await User.findOne({ email: 'fatima@test.com' }))._id,
+        doctorId: (await Doctor.findOne({ email: 'nora@doctor.com' }))._id,
+        date: new Date(Date.now() + 172800000), // Day after tomorrow
+        time: '14:00',
+        status: 'pending',
+        notes: 'موعد تجريبي آخر'
+      }
+    ];
+    
+    for (const appointmentData of testAppointments) {
+      const appointment = new Appointment(appointmentData);
+      await appointment.save();
+      console.log('✅ تم إنشاء موعد تجريبي');
+    }
+    
+    // Create test health centers
+    const testHealthCenters = [
+      {
+        name: 'مركز الصحة الأول',
+        email: 'center1@health.com',
+        phone: '07801234580',
+        password: '123456',
+        address: 'شارع الرشيد، بغداد',
+        province: 'بغداد',
+        area: 'الكرادة',
+        description: 'مركز صحي متكامل يقدم خدمات طبية شاملة',
+        services: ['طب عام', 'طب أسنان', 'مختبر تحاليل'],
+        status: 'approved',
+        isVerified: true,
+        active: true,
+        disabled: false,
+        is_featured: true,
+        rating: 4.7,
+        totalRatings: 25
+      },
+      {
+        name: 'مركز الصحة الثاني',
+        email: 'center2@health.com',
+        phone: '07801234581',
+        password: '123456',
+        address: 'شارع فلسطين، البصرة',
+        province: 'البصرة',
+        area: 'المركز',
+        description: 'مركز صحي حديث يقدم خدمات متطورة',
+        services: ['طب عام', 'أشعة', 'صيدلية'],
+        status: 'pending',
+        isVerified: false,
+        active: true,
+        disabled: false,
+        is_featured: false,
+        rating: 0,
+        totalRatings: 0
+      }
+    ];
+    
+    for (const centerData of testHealthCenters) {
+      const existingCenter = await HealthCenter.findOne({ email: centerData.email });
+      if (!existingCenter) {
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(centerData.password, salt);
+        const center = new HealthCenter({ ...centerData, password: hashedPassword });
+        await center.save();
+        console.log('✅ تم إنشاء مركز صحي:', centerData.name);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'تم إنشاء البيانات التجريبية بنجاح',
+      data: {
+        usersCreated: testUsers.length,
+        doctorsCreated: testDoctors.length,
+        appointmentsCreated: testAppointments.length
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ خطأ في إنشاء البيانات التجريبية:', error);
     res.status(500).json({ success: false, message: 'خطأ في الخادم' });
   }
 });
@@ -486,6 +735,109 @@ app.post('/api/doctors', upload.fields([
       success: false,
       error: 'خطأ في تسجيل الطبيب. حاول مرة أخرى.'
     });
+  }
+});
+
+// Get all health centers
+app.get('/api/health-centers', async (req, res) => {
+  try {
+    console.log('🏥 جلب جميع المراكز الصحية...');
+    const allHealthCenters = await HealthCenter.find({}).select('name email phone address province area description services image status isVerified active disabled is_featured rating totalRatings createdAt');
+    
+    res.json({
+      success: true,
+      data: allHealthCenters
+    });
+  } catch (error) {
+    console.error('❌ خطأ في جلب المراكز الصحية:', error);
+    res.status(500).json({ success: false, message: 'خطأ في الخادم' });
+  }
+});
+
+// Approve health center
+app.put('/api/health-centers/:centerId/approve', async (req, res) => {
+  try {
+    const { centerId } = req.params;
+    console.log('✅ الموافقة على المركز الصحي:', centerId);
+
+    const center = await HealthCenter.findById(centerId);
+    if (!center) {
+      return res.status(404).json({ success: false, message: 'المركز الصحي غير موجود' });
+    }
+
+    center.status = 'approved';
+    center.isVerified = true;
+    center.disabled = false;
+    center.active = true;
+    await center.save();
+
+    res.json({
+      success: true,
+      message: 'تم الموافقة على المركز الصحي بنجاح',
+      center: {
+        _id: center._id,
+        name: center.name,
+        status: center.status
+      }
+    });
+  } catch (error) {
+    console.error('❌ خطأ في الموافقة على المركز الصحي:', error);
+    res.status(500).json({ success: false, message: 'خطأ في الخادم' });
+  }
+});
+
+// Reject health center
+app.put('/api/health-centers/:centerId/reject', async (req, res) => {
+  try {
+    const { centerId } = req.params;
+    console.log('❌ رفض المركز الصحي:', centerId);
+
+    const center = await HealthCenter.findById(centerId);
+    if (!center) {
+      return res.status(404).json({ success: false, message: 'المركز الصحي غير موجود' });
+    }
+
+    center.status = 'rejected';
+    center.isVerified = false;
+    center.disabled = true;
+    center.active = false;
+    await center.save();
+
+    res.json({
+      success: true,
+      message: 'تم رفض المركز الصحي بنجاح',
+      center: {
+        _id: center._id,
+        name: center.name,
+        status: center.status
+      }
+    });
+  } catch (error) {
+    console.error('❌ خطأ في رفض المركز الصحي:', error);
+    res.status(500).json({ success: false, message: 'خطأ في الخادم' });
+  }
+});
+
+// Delete health center
+app.delete('/api/health-centers/:centerId', async (req, res) => {
+  try {
+    const { centerId } = req.params;
+    console.log('🗑️ حذف المركز الصحي:', centerId);
+
+    const center = await HealthCenter.findById(centerId);
+    if (!center) {
+      return res.status(404).json({ success: false, message: 'المركز الصحي غير موجود' });
+    }
+
+    await HealthCenter.findByIdAndDelete(centerId);
+
+    res.json({
+      success: true,
+      message: 'تم حذف المركز الصحي بنجاح'
+    });
+  } catch (error) {
+    console.error('❌ خطأ في حذف المركز الصحي:', error);
+    res.status(500).json({ success: false, message: 'خطأ في الخادم' });
   }
 });
 
